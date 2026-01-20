@@ -105,6 +105,18 @@ ttp-node-core/
 │   │       │   └── query.rs
 │   │       └── ui.rs
 │   │
+│   ├── analytics/
+│   │   ├── Cargo.toml
+│   │   └── src/
+│   │       ├── lib.rs
+│   │       ├── benford.rs
+│   │       ├── entropy.rs
+│   │       ├── fraud_detection.rs
+│   │       ├── correlation.rs
+│   │       ├── statistical.rs
+│   │       ├── patterns.rs
+│   │       └── reporting.rs
+│   │
 │   └── common/
 │       ├── Cargo.toml
 │       └── src/
