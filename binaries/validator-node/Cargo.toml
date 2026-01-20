@@ -1,0 +1,43 @@
+[package]
+name = "validator-node"
+version = "0.1.0"
+edition = "2021"
+authors = ["Voting Core Team"]
+description = "Validator node binary for blockchain voting system"
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "validator-node"
+path = "src/main.rs"
+
+[dependencies]
+# Internal crates
+common = { path = "../../crates/common" }
+blockchain-core = { path = "../../crates/blockchain-core" }
+crypto = { path = "../../crates/crypto" }
+network = { path = "../../crates/network" }
+storage = { path = "../../crates/storage" }
+node = { path = "../../crates/node" }
+rpc = { path = "../../crates/rpc" }
+
+# Command line argument parsing
+clap = { version = "4.4", features = ["derive"] }
+
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Configuration
+toml = "0.8"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

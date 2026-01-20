@@ -141,7 +141,7 @@ ttp-node-core/
 │   │   └── src/
 │   │       └── main.rs
 │   │
-│   └── light-client/
+│   └── light-node/
 │       ├── Cargo.toml
 │       └── src/
 │           └── main.rs
