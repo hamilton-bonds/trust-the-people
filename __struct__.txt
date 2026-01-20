@@ -1,0 +1,190 @@
+ttp-node-core/
+│
+├── Cargo.toml
+├── Cargo.lock
+├── README.md
+├── LICENSE
+├── .gitignore
+├── .env.example
+├── rust-toolchain.toml
+│
+├── crates/
+│   │
+│   ├── blockchain-core/
+│   │   ├── Cargo.toml
+│   │   └── src/
+│   │       ├── lib.rs
+│   │       ├── block.rs
+│   │       ├── chain.rs
+│   │       ├── transaction.rs
+│   │       ├── merkle.rs
+│   │       ├── consensus/
+│   │       │   ├── mod.rs
+│   │       │   ├── proof_of_authority.rs
+│   │       │   ├── validator_set.rs
+│   │       │   └── finality.rs
+│   │       └── genesis.rs
+│   │
+│   ├── crypto/
+│   │   ├── Cargo.toml
+│   │   └── src/
+│   │       ├── lib.rs
+│   │       ├── keys.rs
+│   │       ├── signatures.rs
+│   │       ├── hash.rs
+│   │       ├── encryption.rs
+│   │       ├── zkp/
+│   │       │   ├── mod.rs
+│   │       │   ├── ballot_privacy.rs
+│   │       │   └── range_proof.rs
+│   │       └── threshold.rs
+│   │
+│   ├── voting/
+│   │   ├── Cargo.toml
+│   │   └── src/
+│   │       ├── lib.rs
+│   │       ├── voter.rs
+│   │       ├── ballot.rs
+│   │       ├── vote_casting.rs
+│   │       ├── verification.rs
+│   │       ├── eligibility.rs
+│   │       └── anonymity.rs
+│   │
+│   ├── network/
+│   │   ├── Cargo.toml
+│   │   └── src/
+│   │       ├── lib.rs
+│   │       ├── peer.rs
+│   │       ├── discovery.rs
+│   │       ├── protocol.rs
+│   │       ├── gossip.rs
+│   │       ├── sync.rs
+│   │       └── transport.rs
+│   │
+│   ├── node/
+│   │   ├── Cargo.toml
+│   │   └── src/
+│   │       ├── lib.rs
+│   │       ├── validator.rs
+│   │       ├── full_node.rs
+│   │       ├── light_node.rs
+│   │       └── config.rs
+│   │
+│   ├── storage/
+│   │   ├── Cargo.toml
+│   │   └── src/
+│   │       ├── lib.rs
+│   │       ├── database.rs
+│   │       ├── blockchain_store.rs
+│   │       ├── state_store.rs
+│   │       ├── cache.rs
+│   │       └── snapshot.rs
+│   │
+│   ├── rpc/
+│   │   ├── Cargo.toml
+│   │   └── src/
+│   │       ├── lib.rs
+│   │       ├── server.rs
+│   │       ├── methods/
+│   │       │   ├── mod.rs
+│   │       │   ├── blockchain.rs
+│   │       │   ├── network.rs
+│   │       │   ├── node.rs
+│   │       │   └── validation.rs
+│   │       └── types.rs
+│   │
+│   ├── cli/
+│   │   ├── Cargo.toml
+│   │   └── src/
+│   │       ├── main.rs
+│   │       ├── commands/
+│   │       │   ├── mod.rs
+│   │       │   ├── node.rs
+│   │       │   ├── wallet.rs
+│   │       │   ├── verify.rs
+│   │       │   └── query.rs
+│   │       └── ui.rs
+│   │
+│   └── common/
+│       ├── Cargo.toml
+│       └── src/
+│           ├── lib.rs
+│           ├── types.rs
+│           ├── errors.rs
+│           ├── config.rs
+│           ├── logger.rs
+│           ├── metrics.rs
+│           └── utils.rs
+│
+├── binaries/
+│   │
+│   ├── validator-node/
+│   │   ├── Cargo.toml
+│   │   └── src/
+│   │       └── main.rs
+│   │
+│   ├── full-node/
+│   │   ├── Cargo.toml
+│   │   └── src/
+│   │       └── main.rs
+│   │
+│   └── light-client/
+│       ├── Cargo.toml
+│       └── src/
+│           └── main.rs
+│
+├── tests/
+│   ├── common/
+│   │   └── mod.rs
+│   ├── integration/
+│   │   ├── blockchain_tests.rs
+│   │   ├── consensus_tests.rs
+│   │   ├── network_tests.rs
+│   │   ├── voting_tests.rs
+│   │   └── node_tests.rs
+│   └── fixtures/
+│       ├── test_blocks.rs
+│       └── test_votes.rs
+│
+├── benches/
+│   ├── blockchain_bench.rs
+│   ├── crypto_bench.rs
+│   ├── consensus_bench.rs
+│   └── network_bench.rs
+│
+├── scripts/
+│   ├── setup.sh
+│   ├── build-release.sh
+│   ├── generate-genesis.sh
+│   ├── quick-start.sh
+│   └── run-testnet.sh
+│
+├── docker/
+│   ├── Dockerfile.validator
+│   ├── Dockerfile.full-node
+│   ├── Dockerfile.light-client
+│   ├── docker-compose.yml
+│   └── docker-compose.testnet.yml
+│
+├── docs/
+│   ├── architecture.md
+│   ├── cryptography.md
+│   ├── consensus.md
+│   ├── rpc-api.md
+│   ├── node-setup.md
+│   ├── how-to-validate.md
+│   └── security.md
+│
+├── config/
+│   ├── validator.toml
+│   ├── full-node.toml
+│   ├── genesis.json
+│   └── network.toml
+│
+├── releases/
+│   └── .gitkeep
+│
+└── data/
+    ├── blockchain/
+    ├── state/
+    └── logs/
