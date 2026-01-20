@@ -1,0 +1,61 @@
+[package]
+name = "cli"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["Voting System Contributors"]
+description = "Command-line interface for blockchain voting system"
+
+[[bin]]
+name = "voting-cli"
+path = "src/main.rs"
+
+[dependencies]
+# Internal dependencies
+common = { path = "../common" }
+blockchain-core = { path = "../blockchain-core" }
+crypto = { path = "../crypto" }
+storage = { path = "../storage" }
+network = { path = "../network" }
+node = { path = "../node" }
+rpc = { path = "../rpc" }
+
+# CLI framework
+clap = { version = "4.5", features = ["derive"] }
+
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+
+# HTTP client for RPC
+reqwest = { version = "0.11", features = ["json"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Date/time formatting
+chrono = "0.4"
+
+# Terminal utilities
+crossterm = "0.27"
+
+# Encoding
+hex = "0.4"
+
+# Process management
+which = "6.0"
+
+# Unix-specific (for signal handling)
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.27", features = ["signal"] }
+
+[dev-dependencies]
+tempfile = "3.8"
