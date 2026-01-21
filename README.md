@@ -89,7 +89,7 @@ cargo run --bin cli -- analytics detect-anomalies --election-id <election-id>
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  Validator  │────▶│  Full Node  │────▶│ Light Node  │
+│  Validator  │───▶│  Full Node  │────▶│ Light Node  │
 │    Node     │     │             │     │             │
 └─────────────┘     └─────────────┘     └─────────────┘
       │                    │                    │
