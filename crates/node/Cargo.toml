@@ -42,6 +42,6 @@ rand = "0.8"
 tempfile = "3.8"
 criterion = "0.5"
 
-[[bench]]
-name = "node_bench"
-harness = false
+#[[bench]]
+#name = "node_bench"
+#harness = false

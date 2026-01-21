@@ -44,6 +44,6 @@ anyhow = "1.0"
 tempfile = "3.8"
 criterion = "0.5"
 
-[[bench]]
-name = "network_bench"
-harness = false
+#[[bench]]
+#name = "network_bench"
+#harness = false

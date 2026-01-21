@@ -31,9 +31,9 @@ itertools = "0.12"
 tokio-test = "0.4"
 criterion = "0.5"
 
-[[bench]]
-name = "analytics_bench"
-harness = false
+#[[bench]]
+#name = "analytics_bench"
+#harness = false
 
 [lib]
 name = "analytics"
