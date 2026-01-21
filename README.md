@@ -27,6 +27,17 @@ A decentralized, cryptographically-verified voting system built on blockchain te
 - 4GB RAM minimum (8GB recommended)
 - 10GB free disk space
 
+**System Dependencies (Ubuntu/Debian):**
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential pkg-config libssl-dev clang cmake jq cargo
+```
+
+**System Dependencies (macOS):**
+```bash
+brew install cmake openssl jq
+```
+
 ### Installation
 
 ```bash

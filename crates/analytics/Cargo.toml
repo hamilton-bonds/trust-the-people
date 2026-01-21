@@ -2,7 +2,7 @@
 name = "analytics"
 version = "0.1.0"
 edition = "2021"
-authors = ["The Lizard King]
+authors = ["The Lizard King"]
 description = "That's right, I can tell if you're just copy-pasting my code."
 license = "MIT"
 
