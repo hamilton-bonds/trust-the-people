@@ -104,16 +104,42 @@ impl StorageManager {
         common::utils::ensure_dir_exists(&config.blockchain_path)?;
         common::utils::ensure_dir_exists(&config.state_path)?;
 
-        // Change both to use SledDatabase since RocksDB isn't implemented
-        let blockchain_db = Arc::new(database::SledDatabase::with_config(
-            config.blockchain_path.clone(),
-            &DatabaseConfig::default(),
-        )?);
-        
-        let state_db = Arc::new(database::SledDatabase::with_config(
-            config.state_path.clone(),
-            &DatabaseConfig::default(),
-        )?);
+        // Use RocksDB if the feature is enabled, otherwise fall back to Sled
+        #[cfg(feature = "rocksdb-backend")]
+        let blockchain_db = {
+            let db = Arc::new(database::RocksDBDatabase::with_config(
+                config.blockchain_path.clone(),
+                &DatabaseConfig::default(),
+            )?);
+            db
+        };
+
+        #[cfg(all(feature = "sled-backend", not(feature = "rocksdb-backend")))]
+        let blockchain_db = {
+            let db = Arc::new(database::SledDatabase::with_config(
+                config.blockchain_path.clone(),
+                &DatabaseConfig::default(),
+            )?);
+            db
+        };
+
+        #[cfg(feature = "rocksdb-backend")]
+        let state_db = {
+            let db = Arc::new(database::RocksDBDatabase::with_config(
+                config.state_path.clone(),
+                &DatabaseConfig::default(),
+            )?);
+            db
+        };
+
+        #[cfg(all(feature = "sled-backend", not(feature = "rocksdb-backend")))]
+        let state_db = {
+            let db = Arc::new(database::SledDatabase::with_config(
+                config.state_path.clone(),
+                &DatabaseConfig::default(),
+            )?);
+            db
+        };
 
         let blockchain_store = BlockchainStore::new(blockchain_db)?;
         let state_store = StateStore::new(state_db)?;

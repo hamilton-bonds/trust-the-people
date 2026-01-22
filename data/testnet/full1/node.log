@@ -1,43 +1,90 @@
-  [2m2026-01-22T19:52:58.789360Z[0m [32m INFO[0m [1;32mcommon::logger[0m[32m: [32mLogger initialized at info level[0m
+  [2m2026-01-22T21:03:24.020704Z[0m [32m INFO[0m [1;32mcommon::logger[0m[32m: [32mLogger initialized at info level[0m
     [2;3mat[0m crates/common/src/logger.rs:84
 
-  [2m2026-01-22T19:52:58.789392Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mStarting full node[0m
+  [2m2026-01-22T21:03:24.020741Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mStarting full node[0m
     [2;3mat[0m binaries/full-node/src/main.rs:107
 
-  [2m2026-01-22T19:52:58.789396Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mVersion: 0.1.0[0m
+  [2m2026-01-22T21:03:24.020746Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mVersion: 0.1.0[0m
     [2;3mat[0m binaries/full-node/src/main.rs:108
 
-  [2m2026-01-22T19:52:58.789398Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mData directory: ./data/testnet/full1[0m
+  [2m2026-01-22T21:03:24.020749Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mData directory: ./data/testnet/full1[0m
     [2;3mat[0m binaries/full-node/src/main.rs:109
 
-  [2m2026-01-22T19:52:58.789401Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mUsing command-line configuration[0m
+  [2m2026-01-22T21:03:24.020751Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mUsing command-line configuration[0m
     [2;3mat[0m binaries/full-node/src/main.rs:116
 
-  [2m2026-01-22T19:52:58.789419Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mConfigured 3 bootstrap peer(s)[0m
+  [2m2026-01-22T21:03:24.020779Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mConfigured 3 bootstrap peer(s)[0m
     [2;3mat[0m binaries/full-node/src/main.rs:221
 
-  [2m2026-01-22T19:52:58.789423Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mConfiguration validated successfully[0m
+  [2m2026-01-22T21:03:24.020797Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mConfiguration validated successfully[0m
     [2;3mat[0m binaries/full-node/src/main.rs:123
 
-  [2m2026-01-22T19:52:58.789426Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mNetwork ID: testnet[0m
+  [2m2026-01-22T21:03:24.020800Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mNetwork ID: testnet[0m
     [2;3mat[0m binaries/full-node/src/main.rs:124
 
-  [2m2026-01-22T19:52:58.789428Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mListen address: 127.0.0.1:9003[0m
+  [2m2026-01-22T21:03:24.020802Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mListen address: 127.0.0.1:9003[0m
     [2;3mat[0m binaries/full-node/src/main.rs:125
 
-  [2m2026-01-22T19:52:58.789431Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mBootstrap peers: 3[0m
+  [2m2026-01-22T21:03:24.020805Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mBootstrap peers: 3[0m
     [2;3mat[0m binaries/full-node/src/main.rs:126
 
-  [2m2026-01-22T19:52:58.789433Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mRPC server will be available at: 127.0.0.1:8548[0m
+  [2m2026-01-22T21:03:24.020808Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mRPC server will be available at: 127.0.0.1:8548[0m
     [2;3mat[0m binaries/full-node/src/main.rs:129
 
-  [2m2026-01-22T19:52:58.789439Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mFull node created successfully[0m
+  [2m2026-01-22T21:03:24.020811Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mFull node created successfully[0m
     [2;3mat[0m binaries/full-node/src/main.rs:149
 
-  [2m2026-01-22T19:52:58.789441Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mStarting full node...[0m
+  [2m2026-01-22T21:03:24.020814Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mStarting full node...[0m
     [2;3mat[0m binaries/full-node/src/main.rs:151
 
-  [2m2026-01-22T19:52:58.792809Z[0m [31mERROR[0m [1;31mfull_node[0m[31m: [31mFailed to start full node: Database error: Failed to open Sled: Unsupported: the 'compression' feature must be enabled[0m
-    [2;3mat[0m binaries/full-node/src/main.rs:153
+  [2m2026-01-22T21:03:24.135198Z[0m [32m INFO[0m [1;32mnetwork::transport[0m[32m: [32mTransport listening on 127.0.0.1:9003[0m
+    [2;3mat[0m crates/network/src/transport.rs:55
 
-Error: DatabaseError("Failed to open Sled: Unsupported: the 'compression' feature must be enabled")
+  [2m2026-01-22T21:03:24.135541Z[0m [32m INFO[0m [1;32mnetwork::discovery[0m[32m: [32mDiscovered 3 peer candidates, need 50 more peers[0m
+    [2;3mat[0m crates/network/src/discovery.rs:168
+
+  [2m2026-01-22T21:03:24.135576Z[0m [32m INFO[0m [1;32mnode::full_node[0m[32m: [32mFull node started[0m
+    [2;3mat[0m crates/node/src/full_node.rs:241
+
+  [2m2026-01-22T21:03:24.135582Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mFull node started successfully[0m
+    [2;3mat[0m binaries/full-node/src/main.rs:157
+
+  [2m2026-01-22T21:03:24.135585Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mNode is now syncing and validating blocks[0m
+    [2;3mat[0m binaries/full-node/src/main.rs:158
+
+  [2m2026-01-22T21:03:24.135588Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mPress Ctrl+C to stop the node[0m
+    [2;3mat[0m binaries/full-node/src/main.rs:159
+
+  [2m2026-01-22T21:03:24.137023Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mNode is running...[0m
+    [2;3mat[0m binaries/full-node/src/main.rs:166
+
+  [2m2026-01-22T21:03:54.137303Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mNode is running...[0m
+    [2;3mat[0m binaries/full-node/src/main.rs:166
+
+  [2m2026-01-22T21:04:24.138618Z[0m [32m INFO[0m [1;32mnetwork::discovery[0m[32m: [32mDiscovered 3 peer candidates, need 50 more peers[0m
+    [2;3mat[0m crates/network/src/discovery.rs:168
+
+  [2m2026-01-22T21:04:24.138689Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mNode is running...[0m
+    [2;3mat[0m binaries/full-node/src/main.rs:166
+
+  [2m2026-01-22T21:04:54.136870Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mNode is running...[0m
+    [2;3mat[0m binaries/full-node/src/main.rs:166
+
+  [2m2026-01-22T21:04:57.522805Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mReceived shutdown signal[0m
+    [2;3mat[0m binaries/full-node/src/main.rs:174
+
+  [2m2026-01-22T21:04:57.522824Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mInitiating graceful shutdown...[0m
+    [2;3mat[0m binaries/full-node/src/main.rs:179
+
+  [2m2026-01-22T21:04:57.522858Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mStopping full node...[0m
+    [2;3mat[0m binaries/full-node/src/main.rs:185
+
+  [2m2026-01-22T21:04:57.559226Z[0m [32m INFO[0m [1;32mnode::full_node[0m[32m: [32mFull node stopped[0m
+    [2;3mat[0m crates/node/src/full_node.rs:259
+
+  [2m2026-01-22T21:04:57.559249Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mFull node stopped successfully[0m
+    [2;3mat[0m binaries/full-node/src/main.rs:187
+
+  [2m2026-01-22T21:04:57.559253Z[0m [32m INFO[0m [1;32mfull_node[0m[32m: [32mGoodbye![0m
+    [2;3mat[0m binaries/full-node/src/main.rs:188
+

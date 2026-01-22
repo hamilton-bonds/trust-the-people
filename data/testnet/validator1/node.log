@@ -1,43 +1,105 @@
-  [2m2026-01-22T19:52:49.795005Z[0m [32m INFO[0m [1;32mcommon::logger[0m[32m: [32mLogger initialized at info level[0m
+  [2m2026-01-22T21:03:15.012775Z[0m [32m INFO[0m [1;32mcommon::logger[0m[32m: [32mLogger initialized at info level[0m
     [2;3mat[0m crates/common/src/logger.rs:84
 
-  [2m2026-01-22T19:52:49.796244Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mStarting validator node[0m
+  [2m2026-01-22T21:03:15.012816Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mStarting validator node[0m
     [2;3mat[0m binaries/validator-node/src/main.rs:98
 
-  [2m2026-01-22T19:52:49.796249Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mVersion: 0.1.0[0m
+  [2m2026-01-22T21:03:15.012820Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mVersion: 0.1.0[0m
     [2;3mat[0m binaries/validator-node/src/main.rs:99
 
-  [2m2026-01-22T19:52:49.796251Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mData directory: ./data/testnet/validator1[0m
+  [2m2026-01-22T21:03:15.012823Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mData directory: ./data/testnet/validator1[0m
     [2;3mat[0m binaries/validator-node/src/main.rs:100
 
-  [2m2026-01-22T19:52:49.796254Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mValidator key: ./data/testnet/keys/validator1.pem[0m
+  [2m2026-01-22T21:03:15.012826Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mValidator key: ./data/testnet/keys/validator1.pem[0m
     [2;3mat[0m binaries/validator-node/src/main.rs:101
 
-  [2m2026-01-22T19:52:49.796256Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mUsing command-line configuration[0m
+  [2m2026-01-22T21:03:15.012829Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mUsing command-line configuration[0m
     [2;3mat[0m binaries/validator-node/src/main.rs:108
 
-  [2m2026-01-22T19:52:49.796272Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mConfiguration validated successfully[0m
+  [2m2026-01-22T21:03:15.012839Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mConfiguration validated successfully[0m
     [2;3mat[0m binaries/validator-node/src/main.rs:115
 
-  [2m2026-01-22T19:52:49.796275Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mNetwork ID: testnet[0m
+  [2m2026-01-22T21:03:15.012842Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mNetwork ID: testnet[0m
     [2;3mat[0m binaries/validator-node/src/main.rs:116
 
-  [2m2026-01-22T19:52:49.796278Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mListen address: 127.0.0.1:9000[0m
+  [2m2026-01-22T21:03:15.012845Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mListen address: 127.0.0.1:9000[0m
     [2;3mat[0m binaries/validator-node/src/main.rs:117
 
-  [2m2026-01-22T19:52:49.796281Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mRPC server will be available at: 127.0.0.1:8545[0m
+  [2m2026-01-22T21:03:15.012848Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mRPC server will be available at: 127.0.0.1:8545[0m
     [2;3mat[0m binaries/validator-node/src/main.rs:120
 
-  [2m2026-01-22T19:52:49.822905Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mValidator node created successfully[0m
+  [2m2026-01-22T21:03:15.044577Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mValidator node created successfully[0m
     [2;3mat[0m binaries/validator-node/src/main.rs:133
 
-  [2m2026-01-22T19:52:49.822927Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mPublic key: 4595f8b38c6f47e6308ca9cacc293162e41a69a0332ce5f9e4255e48383bef1b[0m
+  [2m2026-01-22T21:03:15.044613Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mPublic key: 98e89ea4db63380bc61e9879a7e00fea4bb94aeea2e902e216419b02bc35bfb9[0m
     [2;3mat[0m binaries/validator-node/src/main.rs:134
 
-  [2m2026-01-22T19:52:49.822931Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mStarting validator node...[0m
+  [2m2026-01-22T21:03:15.044622Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mStarting validator node...[0m
     [2;3mat[0m binaries/validator-node/src/main.rs:136
 
-  [2m2026-01-22T19:52:49.849482Z[0m [31mERROR[0m [1;31mvalidator_node[0m[31m: [31mFailed to start validator node: Database error: Failed to open Sled: Unsupported: the 'compression' feature must be enabled[0m
-    [2;3mat[0m binaries/validator-node/src/main.rs:138
+  [2m2026-01-22T21:03:15.072900Z[0m [32m INFO[0m [1;32mnetwork::transport[0m[32m: [32mTransport listening on 127.0.0.1:9000[0m
+    [2;3mat[0m crates/network/src/transport.rs:55
 
-Error: DatabaseError("Failed to open Sled: Unsupported: the 'compression' feature must be enabled")
+  [2m2026-01-22T21:03:15.072926Z[0m [32m INFO[0m [1;32mnode::validator[0m[32m: [32mValidator node started[0m
+    [2;3mat[0m crates/node/src/validator.rs:258
+
+  [2m2026-01-22T21:03:15.072931Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mValidator node started successfully[0m
+    [2;3mat[0m binaries/validator-node/src/main.rs:142
+
+  [2m2026-01-22T21:03:15.072934Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mNode is now producing and validating blocks[0m
+    [2;3mat[0m binaries/validator-node/src/main.rs:143
+
+  [2m2026-01-22T21:03:15.074585Z[0m [32m INFO[0m [1;32mnode::validator[0m[32m: [32mProduced block at height 1[0m
+    [2;3mat[0m crates/node/src/validator.rs:180
+
+  [2m2026-01-22T21:03:15.074606Z[0m [32m INFO[0m [1;32mnetwork::discovery[0m[32m: [32mDiscovered 0 peer candidates, need 50 more peers[0m
+    [2;3mat[0m crates/network/src/discovery.rs:168
+
+  [2m2026-01-22T21:03:25.075418Z[0m [31mERROR[0m [1;31mnode::validator[0m[31m: [31mFailed to produce block: ConsensusError("Wrong validator turn. Expected 66436634f67ebf3beabc35b40bda43ede9bbf02488657185fd332834c4480e08, got 98e89ea4db63380bc61e9879a7e00fea4bb94aeea2e902e216419b02bc35bfb9")[0m
+    [2;3mat[0m crates/node/src/validator.rs:125
+
+  [2m2026-01-22T21:03:35.075057Z[0m [31mERROR[0m [1;31mnode::validator[0m[31m: [31mFailed to produce block: ConsensusError("Wrong validator turn. Expected 14070f4146ff729a47763d56a783e5531e74fa217e8cfb953de90891a7db3b6a, got 98e89ea4db63380bc61e9879a7e00fea4bb94aeea2e902e216419b02bc35bfb9")[0m
+    [2;3mat[0m crates/node/src/validator.rs:125
+
+  [2m2026-01-22T21:03:45.075343Z[0m [32m INFO[0m [1;32mnode::validator[0m[32m: [32mProduced block at height 2[0m
+    [2;3mat[0m crates/node/src/validator.rs:180
+
+  [2m2026-01-22T21:03:55.077895Z[0m [31mERROR[0m [1;31mnode::validator[0m[31m: [31mFailed to produce block: ConsensusError("Wrong validator turn. Expected 66436634f67ebf3beabc35b40bda43ede9bbf02488657185fd332834c4480e08, got 98e89ea4db63380bc61e9879a7e00fea4bb94aeea2e902e216419b02bc35bfb9")[0m
+    [2;3mat[0m crates/node/src/validator.rs:125
+
+  [2m2026-01-22T21:04:05.075086Z[0m [31mERROR[0m [1;31mnode::validator[0m[31m: [31mFailed to produce block: ConsensusError("Wrong validator turn. Expected 14070f4146ff729a47763d56a783e5531e74fa217e8cfb953de90891a7db3b6a, got 98e89ea4db63380bc61e9879a7e00fea4bb94aeea2e902e216419b02bc35bfb9")[0m
+    [2;3mat[0m crates/node/src/validator.rs:125
+
+  [2m2026-01-22T21:04:15.074005Z[0m [32m INFO[0m [1;32mnetwork::discovery[0m[32m: [32mDiscovered 0 peer candidates, need 50 more peers[0m
+    [2;3mat[0m crates/network/src/discovery.rs:168
+
+  [2m2026-01-22T21:04:15.074103Z[0m [32m INFO[0m [1;32mnode::validator[0m[32m: [32mProduced block at height 3[0m
+    [2;3mat[0m crates/node/src/validator.rs:180
+
+  [2m2026-01-22T21:04:25.074911Z[0m [31mERROR[0m [1;31mnode::validator[0m[31m: [31mFailed to produce block: ConsensusError("Wrong validator turn. Expected 66436634f67ebf3beabc35b40bda43ede9bbf02488657185fd332834c4480e08, got 98e89ea4db63380bc61e9879a7e00fea4bb94aeea2e902e216419b02bc35bfb9")[0m
+    [2;3mat[0m crates/node/src/validator.rs:125
+
+  [2m2026-01-22T21:04:35.078003Z[0m [31mERROR[0m [1;31mnode::validator[0m[31m: [31mFailed to produce block: ConsensusError("Wrong validator turn. Expected 14070f4146ff729a47763d56a783e5531e74fa217e8cfb953de90891a7db3b6a, got 98e89ea4db63380bc61e9879a7e00fea4bb94aeea2e902e216419b02bc35bfb9")[0m
+    [2;3mat[0m crates/node/src/validator.rs:125
+
+  [2m2026-01-22T21:04:45.074567Z[0m [32m INFO[0m [1;32mnode::validator[0m[32m: [32mProduced block at height 4[0m
+    [2;3mat[0m crates/node/src/validator.rs:180
+
+  [2m2026-01-22T21:04:55.075079Z[0m [31mERROR[0m [1;31mnode::validator[0m[31m: [31mFailed to produce block: ConsensusError("Wrong validator turn. Expected 66436634f67ebf3beabc35b40bda43ede9bbf02488657185fd332834c4480e08, got 98e89ea4db63380bc61e9879a7e00fea4bb94aeea2e902e216419b02bc35bfb9")[0m
+    [2;3mat[0m crates/node/src/validator.rs:125
+
+  [2m2026-01-22T21:04:57.522633Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mReceived shutdown signal[0m
+    [2;3mat[0m binaries/validator-node/src/main.rs:149
+
+  [2m2026-01-22T21:04:57.522673Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mInitiating graceful shutdown...[0m
+    [2;3mat[0m binaries/validator-node/src/main.rs:154
+
+  [2m2026-01-22T21:04:57.522678Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mStopping validator node...[0m
+    [2;3mat[0m binaries/validator-node/src/main.rs:158
+
+  [2m2026-01-22T21:04:57.561625Z[0m [32m INFO[0m [1;32mnode::validator[0m[32m: [32mValidator node stopped[0m
+    [2;3mat[0m crates/node/src/validator.rs:276
+
+  [2m2026-01-22T21:04:57.561645Z[0m [32m INFO[0m [1;32mvalidator_node[0m[32m: [32mValidator node stopped successfully[0m
+    [2;3mat[0m binaries/validator-node/src/main.rs:160
+
