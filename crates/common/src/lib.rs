@@ -2,6 +2,7 @@ pub mod types;
 pub mod errors;
 pub mod config;
 pub mod utils;
+pub mod logger;
 
 // Re-export commonly used types
 pub use types::{

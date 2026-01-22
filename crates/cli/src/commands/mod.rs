@@ -9,7 +9,6 @@
 pub mod node;
 pub mod query;
 pub mod verify;
-pub mod wallet;
 
 use common::{Result, VotingError};
 use serde_json::Value;

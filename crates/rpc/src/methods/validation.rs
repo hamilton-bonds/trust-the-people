@@ -97,15 +97,14 @@ impl ValidationMethods {
             .ok_or_else(|| common::VotingError::ElectionNotFound(election_id))?;
 
         // Parse jurisdiction from jurisdiction_path
-        let jurisdiction = if let Some(path) = &election.jurisdiction_path {
-            let parts: Vec<&str> = path.split('/').collect();
+        let jurisdiction = {
+            let path_str = election.jurisdiction_path.to_string();
+            let parts: Vec<&str> = path_str.split('/').collect();
             Some(JurisdictionInfo {
                 level: parts.first().unwrap_or(&"").to_string(),
                 name: parts.get(1).unwrap_or(&"").to_string(),
                 parent: None,
             })
-        } else {
-            None
         };
 
         let candidates = election
@@ -201,8 +200,12 @@ impl ValidationMethods {
         let chain = self.chain.read().await;
         let query_height = height.unwrap_or(chain.height());
 
+        // For now, return empty validator list
+        // TODO: Implement actual validator retrieval from chain
         Ok(ValidatorSetResponse {
             height: query_height,
+            total_validators: 0,
+            validators: Vec::new(),
         })
     }
 

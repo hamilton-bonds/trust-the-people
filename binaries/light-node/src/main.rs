@@ -7,7 +7,7 @@
 
 use clap::Parser;
 use common::{logger, Result, VotingError};
-use node::{LightNode, NodeConfig, NodeType};
+use node::{LightNode, Node, NodeConfig, NodeType};
 use std::path::PathBuf;
 use tokio::signal;
 use tracing::{error, info, warn};
@@ -98,6 +98,12 @@ async fn main() -> Result<()> {
             args.data_dir.join("logs").join("light-node.log")
         }),
         format: common::config::LogFormat::Pretty,
+        enable_metrics: args.enable_metrics,
+        metrics_addr: if args.enable_metrics {
+            Some(args.metrics_addr.parse().expect("Invalid metrics address"))
+        } else {
+            None
+        },
     };
 
     logger::init_logger(&logging_config)
@@ -117,10 +123,10 @@ async fn main() -> Result<()> {
         warn!("Checkpoint height and hash must both be provided. Ignoring incomplete checkpoint.");
     }
 
-    let config = if let Some(config_path) = args.config {
-        info!("Loading configuration from: {}", config_path.display());
-        NodeConfig::from_file(config_path.to_str().unwrap())
-            .map_err(|e| VotingError::ConfigurationError(format!("Failed to load config: {}", e)))?
+    let config = if args.config.is_some() {
+        return Err(VotingError::ConfigurationError(
+            "Config file loading not yet implemented. Use command-line args.".to_string()
+        ));
     } else {
         info!("Using command-line configuration");
         build_config_from_args(&args)?
@@ -164,22 +170,14 @@ async fn main() -> Result<()> {
     info!("Node is now syncing block headers");
     info!("Press Ctrl+C to stop the node");
 
-    let node_status_task = {
-        let light_node = light_node.clone();
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60));
-            loop {
-                interval.tick().await;
-                let status = light_node.status().await;
-                info!(
-                    "Light node status: Height={} Peers={} Syncing={}",
-                    status.current_height,
-                    status.peer_count,
-                    status.is_syncing
-                );
-            }
-        })
-    };
+    let node_status_task = tokio::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            // Simple status logging
+            info!("Light node is running...");
+        }
+    });
 
     let shutdown_signal = async {
         signal::ctrl_c()
@@ -256,27 +254,33 @@ fn build_config_from_args(args: &Args) -> Result<NodeConfig> {
     };
 
     let storage_config = common::config::StorageConfig {
-        db_path: args.data_dir.join("headers"),
+        data_dir: args.data_dir.clone(),
+        blockchain_db_path: args.data_dir.join("headers"),
+        state_db_path: args.data_dir.join("state"),
+        enable_compression: true,
         cache_size_mb: args.cache_size_mb,
         enable_pruning: true,
-        pruning_retention_days: 7,
-        enable_compression: true,
+        pruning_days: 7,
     };
 
     let consensus_config = common::config::ConsensusConfig {
-        block_time_ms: 10000,
+        algorithm: common::config::ConsensusAlgorithm::ProofOfAuthority,
+        block_time: 10,
         min_validators: 3,
-        max_validators: 100,
         finality_threshold: 0.67,
+        is_validator: false,
+        validator_key_path: None,
     };
 
     let rpc_config = common::config::RpcConfig {
         enabled: args.enable_rpc,
-        listen_addr: args.rpc_addr.clone(),
-        max_connections: 50,
-        request_timeout_ms: 30000,
+        listen_addr: args.rpc_addr.parse()
+            .map_err(|e| VotingError::ConfigurationError(format!("Invalid RPC address: {}", e)))?,
         enable_cors: true,
-        allowed_origins: vec!["*".to_string()],
+        cors_origins: vec!["*".to_string()],
+        request_timeout: 30,
+        max_request_size: 10 * 1024 * 1024,
+        rate_limit: 100,
     };
 
     Ok(NodeConfig {

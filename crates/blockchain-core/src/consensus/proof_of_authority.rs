@@ -90,6 +90,11 @@ impl ProofOfAuthority {
         
         Ok(())
     }
+    
+    /// Check if a public key is a validator
+    pub fn is_validator(&self, public_key: &PublicKey) -> bool {
+        self.validator_set.validators().contains(public_key)
+    }
 }
 
 impl Consensus for ProofOfAuthority {

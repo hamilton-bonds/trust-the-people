@@ -274,6 +274,21 @@ impl Blockchain {
         
         Ok(pruned_count)
     }
+
+    /// Get block at specific height
+    pub fn get_block_at_height(&self, height: BlockHeight) -> Result<&Block> {
+        self.blocks
+            .iter()
+            .find(|b| b.header.height == height)
+            .ok_or_else(|| VotingError::BlockNotFound(height.to_string()))
+    }
+
+    /// Get the best (latest) block
+    pub fn get_best_block(&self) -> Result<&Block> {
+        self.blocks
+            .last()
+            .ok_or_else(|| VotingError::BlockNotFound("No blocks in chain".to_string()))
+    }
 }
 
 /// Validator set information

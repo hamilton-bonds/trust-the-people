@@ -15,7 +15,7 @@ use tracing::{error, info};
 mod commands;
 mod ui;
 
-use commands::{node, query, verify, wallet};
+use commands::{node, query, verify };
 
 /// Blockchain Voting System CLI
 #[derive(Parser)]
@@ -52,10 +52,6 @@ enum Commands {
     /// Verify votes and receipts
     #[command(subcommand)]
     Verify(VerifyCommands),
-
-    /// Wallet operations (for testing only)
-    #[command(subcommand)]
-    Wallet(WalletCommands),
 }
 
 #[derive(Subcommand)]
@@ -240,23 +236,6 @@ enum VerifyCommands {
     },
 }
 
-#[derive(Subcommand)]
-enum WalletCommands {
-    /// Generate a new keypair (for testing)
-    Generate {
-        /// Output file path
-        #[arg(short, long)]
-        output: PathBuf,
-    },
-
-    /// Show public key from keypair
-    Show {
-        /// Keypair file path
-        #[arg(short, long)]
-        keypair: PathBuf,
-    },
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -318,11 +297,6 @@ async fn main() -> Result<()> {
             } => verify::vote(&tx_hash, &proof, &rpc).await,
             VerifyCommands::Chain { start, end, rpc } => verify::chain(start, end, &rpc).await,
             VerifyCommands::Election { id, rpc } => verify::election(&id, &rpc).await,
-        },
-
-        Commands::Wallet(cmd) => match cmd {
-            WalletCommands::Generate { output } => wallet::generate(&output),
-            WalletCommands::Show { keypair } => wallet::show(&keypair),
         },
     };
 

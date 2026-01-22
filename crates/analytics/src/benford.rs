@@ -9,7 +9,6 @@
 
 use common::{Result, VotingError};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 /// Expected frequencies for first digits according to Benford's Law
 pub const BENFORD_FREQUENCIES: [f64; 10] = [
@@ -28,21 +27,32 @@ pub const BENFORD_FREQUENCIES: [f64; 10] = [
 /// Benford's Law analyzer
 #[derive(Debug, Clone)]
 pub struct BenfordAnalyzer {
-    /// Chi-square critical values for different significance levels
-    /// Using 8 degrees of freedom (9 digits - 1)
-    critical_values: HashMap<f64, f64>,
+    // Critical values are now computed via method instead of HashMap
 }
 
 impl BenfordAnalyzer {
     /// Create a new Benford analyzer
     pub fn new() -> Self {
-        let mut critical_values = HashMap::new();
-        critical_values.insert(0.10, 13.362); // 90% confidence
-        critical_values.insert(0.05, 15.507); // 95% confidence
-        critical_values.insert(0.01, 20.090); // 99% confidence
-        critical_values.insert(0.001, 26.125); // 99.9% confidence
+        Self {}
+    }
 
-        Self { critical_values }
+    /// Get critical chi-square value for given significance level
+    /// Using 8 degrees of freedom (9 digits - 1)
+    fn get_critical_value(&self, alpha: f64) -> f64 {
+        // Use epsilon comparison for floating point
+        const EPSILON: f64 = 0.0001;
+        
+        if (alpha - 0.10).abs() < EPSILON {
+            13.362  // 90% confidence
+        } else if (alpha - 0.05).abs() < EPSILON {
+            15.507  // 95% confidence
+        } else if (alpha - 0.01).abs() < EPSILON {
+            20.090  // 99% confidence
+        } else if (alpha - 0.001).abs() < EPSILON {
+            26.125  // 99.9% confidence
+        } else {
+            15.507  // default to 95%
+        }
     }
 
     /// Analyze a dataset for Benford's Law compliance
@@ -64,7 +74,7 @@ impl BenfordAnalyzer {
         let total = values.len() as f64;
         let chi_square = self.calculate_chi_square(&digit_counts, total);
         let p_value = self.estimate_p_value(chi_square);
-        let complies = chi_square < self.critical_values[&0.05];
+        let complies = chi_square < self.get_critical_value(0.05);
 
         let mut observed_frequencies = [0.0; 10];
         for digit in 1..=9 {
@@ -134,13 +144,13 @@ impl BenfordAnalyzer {
 
     /// Estimate p-value from chi-square statistic
     fn estimate_p_value(&self, chi_square: f64) -> f64 {
-        if chi_square < self.critical_values[&0.10] {
+        if chi_square < self.get_critical_value(0.10) {
             1.0 // p > 0.10
-        } else if chi_square < self.critical_values[&0.05] {
+        } else if chi_square < self.get_critical_value(0.05) {
             0.075 // 0.05 < p < 0.10
-        } else if chi_square < self.critical_values[&0.01] {
+        } else if chi_square < self.get_critical_value(0.01) {
             0.03 // 0.01 < p < 0.05
-        } else if chi_square < self.critical_values[&0.001] {
+        } else if chi_square < self.get_critical_value(0.001) {
             0.005 // 0.001 < p < 0.01
         } else {
             0.0005 // p < 0.001
@@ -231,13 +241,13 @@ impl BenfordAnalyzer {
             });
         }
 
-        let significance_level = if result.chi_square_statistic < self.critical_values[&0.10] {
+        let significance_level = if result.chi_square_statistic < self.get_critical_value(0.10) {
             "Not significant (p > 0.10)"
-        } else if result.chi_square_statistic < self.critical_values[&0.05] {
+        } else if result.chi_square_statistic < self.get_critical_value(0.05) {
             "Marginally significant (0.05 < p < 0.10)"
-        } else if result.chi_square_statistic < self.critical_values[&0.01] {
+        } else if result.chi_square_statistic < self.get_critical_value(0.01) {
             "Significant (0.01 < p < 0.05)"
-        } else if result.chi_square_statistic < self.critical_values[&0.001] {
+        } else if result.chi_square_statistic < self.get_critical_value(0.001) {
             "Very significant (0.001 < p < 0.01)"
         } else {
             "Highly significant (p < 0.001)"

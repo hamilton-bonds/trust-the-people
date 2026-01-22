@@ -92,7 +92,7 @@ pub async fn vote(tx_hash: &str, proof_hex: &str, rpc_endpoint: &str) -> Result<
     println!("Verifying vote transaction and zero-knowledge proof...\n");
 
     // Get the vote transaction
-    let tx = client
+    let _tx = client
         .call(
             "get_transaction",
             serde_json::json!({ "hash": tx_hash }),
@@ -177,7 +177,7 @@ pub async fn chain(start_height: u64, end_height: Option<u64>, rpc_endpoint: &st
             .await?;
 
         // Verify previous hash chain
-        if let Some(prev) = previous_hash {
+        if let Some(ref prev) = previous_hash {
             if block["previous_hash"].as_str() != Some(&prev) {
                 failed += 1;
                 println!(
@@ -395,7 +395,7 @@ pub async fn election_proofs(election_id: &str, rpc_endpoint: &str) -> Result<()
     for (i, vote) in votes.iter().enumerate() {
         ui::display_verification_progress(i as u64, votes.len() as u64, start_time);
 
-        let tx_id = vote["id"].as_str().unwrap_or("");
+        let _tx_id = vote["id"].as_str().unwrap_or("");
 
         // In production, would verify actual ZK proofs
         // For now, just check vote exists and has required fields

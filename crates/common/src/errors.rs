@@ -170,6 +170,13 @@ pub enum VotingError {
 
     #[error("Invalid hex string")]
     InvalidHex(#[from] hex::FromHexError),
+
+    // Analytics errors
+    #[error("Insufficient data: {0}")]
+    InsufficientData(String),
+
+    #[error("Configuration error: {0}")]
+    ConfigurationError(String),
 }
 
 /// Result type alias for voting system operations

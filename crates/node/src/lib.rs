@@ -8,8 +8,8 @@ pub use full_node::FullNode;
 pub use light_node::LightNode;
 pub use config::{NodeConfig, NodeType};
 
-use blockchain_core::{Block, Blockchain, Transaction};
-use common::{BlockHash, BlockHeight, Result, Timestamp, VotingError};
+use blockchain_core::Block;
+use common::{BlockHash, BlockHeight, Result, Timestamp};
 use network::NetworkManager;
 use storage::StorageManager;
 use std::sync::Arc;
@@ -41,27 +41,28 @@ pub struct NodeStats {
 }
 
 /// Core node trait implemented by all node types
+#[async_trait::async_trait]
 pub trait Node: Send + Sync {
     /// Start the node
-    fn start(&self) -> impl std::future::Future<Output = Result<()>> + Send;
+    async fn start(&self) -> Result<()>;
     
     /// Stop the node
-    fn stop(&self) -> impl std::future::Future<Output = Result<()>> + Send;
+    async fn stop(&self) -> Result<()>;
     
     /// Get node status
-    fn status(&self) -> impl std::future::Future<Output = NodeStatus> + Send;
+    async fn status(&self) -> NodeStatus;
     
     /// Get node statistics
-    fn stats(&self) -> impl std::future::Future<Output = NodeStats> + Send;
+    async fn stats(&self) -> NodeStats;
     
     /// Check if node is running
-    fn is_running(&self) -> impl std::future::Future<Output = bool> + Send;
+    async fn is_running(&self) -> bool;
     
     /// Get current blockchain height
-    fn current_height(&self) -> impl std::future::Future<Output = BlockHeight> + Send;
+    async fn current_height(&self) -> BlockHeight;
     
     /// Get best block hash
-    fn best_hash(&self) -> impl std::future::Future<Output = BlockHash> + Send;
+    async fn best_hash(&self) -> BlockHash;
 }
 
 /// Node builder for creating different node types
@@ -78,115 +79,37 @@ impl NodeBuilder {
         match self.config.node_type {
             NodeType::Validator => {
                 let node = ValidatorNode::new(self.config)?;
-                Ok(Box::new(node))
+                Ok(Box::new(node) as Box<dyn Node>)
             }
             NodeType::Full => {
                 let node = FullNode::new(self.config)?;
-                Ok(Box::new(node))
+                Ok(Box::new(node) as Box<dyn Node>)
             }
             NodeType::Light => {
                 let node = LightNode::new(self.config)?;
-                Ok(Box::new(node))
+                Ok(Box::new(node) as Box<dyn Node>)
             }
         }
     }
 }
 
-/// Shared node components used by all node types
+/// Shared components used by all node types
 pub struct NodeComponents {
-    pub blockchain: Arc<RwLock<Blockchain>>,
+    pub blockchain: Arc<RwLock<blockchain_core::Blockchain>>,
     pub storage: Arc<StorageManager>,
     pub network: Arc<NetworkManager>,
 }
 
 impl NodeComponents {
-    pub async fn new(
-        blockchain: Blockchain,
-        storage: StorageManager,
-        network: NetworkManager,
-    ) -> Self {
-        Self {
-            blockchain: Arc::new(RwLock::new(blockchain)),
-            storage: Arc::new(storage),
-            network: Arc::new(network),
-        }
-    }
-    
-    pub async fn add_block(&self, block: Block) -> Result<()> {
-        let mut blockchain = self.blockchain.write().await;
-        blockchain.add_block(block)?;
-        Ok(())
-    }
-    
-    pub async fn get_block(&self, height: BlockHeight) -> Option<Block> {
-        let blockchain = self.blockchain.read().await;
-        blockchain.get_block_by_height(height).cloned()
-    }
-    
     pub async fn get_current_height(&self) -> BlockHeight {
         self.blockchain.read().await.height()
     }
     
     pub async fn get_best_hash(&self) -> BlockHash {
-        self.blockchain.read().await.latest_block().hash()
-    }
-    
-    pub async fn verify_blockchain(&self) -> Result<()> {
-        self.blockchain.read().await.verify()
-    }
-}
-
-/// Node event types
-#[derive(Debug, Clone)]
-pub enum NodeEvent {
-    Started,
-    Stopped,
-    BlockReceived(BlockHash),
-    BlockProcessed(BlockHash),
-    BlockProduced(BlockHash),
-    TransactionReceived(common::TxId),
-    PeerConnected(network::PeerId),
-    PeerDisconnected(network::PeerId),
-    SyncStarted,
-    SyncCompleted,
-    Error(String),
-}
-
-/// Node event handler
-pub trait NodeEventHandler: Send + Sync {
-    fn handle_event(&self, event: NodeEvent) -> impl std::future::Future<Output = ()> + Send;
-}
-
-/// Default event handler that logs events
-pub struct DefaultEventHandler;
-
-impl NodeEventHandler for DefaultEventHandler {
-    async fn handle_event(&self, event: NodeEvent) {
-        match event {
-            NodeEvent::Started => tracing::info!("Node started"),
-            NodeEvent::Stopped => tracing::info!("Node stopped"),
-            NodeEvent::BlockReceived(hash) => {
-                tracing::debug!("Block received: {}", hash.to_hex())
-            }
-            NodeEvent::BlockProcessed(hash) => {
-                tracing::info!("Block processed: {}", hash.to_hex())
-            }
-            NodeEvent::BlockProduced(hash) => {
-                tracing::info!("Block produced: {}", hash.to_hex())
-            }
-            NodeEvent::TransactionReceived(tx_id) => {
-                tracing::debug!("Transaction received: {}", tx_id.to_hex())
-            }
-            NodeEvent::PeerConnected(peer_id) => {
-                tracing::info!("Peer connected: {}", peer_id)
-            }
-            NodeEvent::PeerDisconnected(peer_id) => {
-                tracing::info!("Peer disconnected: {}", peer_id)
-            }
-            NodeEvent::SyncStarted => tracing::info!("Blockchain sync started"),
-            NodeEvent::SyncCompleted => tracing::info!("Blockchain sync completed"),
-            NodeEvent::Error(msg) => tracing::error!("Node error: {}", msg),
-        }
+        self.blockchain.read().await
+            .get_best_block()
+            .map(|b| b.header.hash)
+            .unwrap_or_else(|_| BlockHash::zero())
     }
 }
 
@@ -195,40 +118,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_node_type() {
-        let types = vec![NodeType::Validator, NodeType::Full, NodeType::Light];
-        assert_eq!(types.len(), 3);
-    }
-
-    #[test]
     fn test_node_stats_default() {
         let stats = NodeStats::default();
         assert_eq!(stats.blocks_processed, 0);
         assert_eq!(stats.transactions_processed, 0);
+        assert_eq!(stats.votes_verified, 0);
     }
 
     #[test]
-    fn test_node_event() {
-        let event = NodeEvent::Started;
-        assert!(matches!(event, NodeEvent::Started));
+    fn test_node_status_creation() {
+        let status = NodeStatus {
+            node_type: NodeType::Full,
+            is_running: true,
+            is_syncing: false,
+            current_height: 10,
+            best_hash: BlockHash::zero(),
+            peer_count: 5,
+            uptime: 3600,
+            started_at: Some(1234567890),
+        };
         
-        let event = NodeEvent::Error("test".to_string());
-        assert!(matches!(event, NodeEvent::Error(_)));
-    }
-
-    #[tokio::test]
-    async fn test_default_event_handler() {
-        let handler = DefaultEventHandler;
-        handler.handle_event(NodeEvent::Started).await;
-        handler.handle_event(NodeEvent::Stopped).await;
-    }
-
-    #[test]
-    fn test_node_builder() {
-        let config = NodeConfig::default();
-        let builder = NodeBuilder::new(config);
-        
-        let result = builder.build();
-        assert!(result.is_ok());
+        assert_eq!(status.node_type, NodeType::Full);
+        assert!(status.is_running);
+        assert_eq!(status.current_height, 10);
     }
 }

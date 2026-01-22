@@ -1,6 +1,6 @@
 use crate::config::{LogFormat, LogLevel, LoggingConfig};
 use tracing::Level;
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
 
 /// Initialize the logging system based on configuration
 pub fn init_logger(config: &LoggingConfig) -> Result<(), Box<dyn std::error::Error>> {
@@ -25,32 +25,33 @@ pub fn init_logger(config: &LoggingConfig) -> Result<(), Box<dyn std::error::Err
                 .append(true)
                 .open(&config.log_file_path)?;
 
-            let file_layer = match config.format {
-                LogFormat::Json => fmt::layer()
-                    .json()
-                    .with_writer(std::sync::Mutex::new(file))
-                    .boxed(),
-                LogFormat::Pretty => fmt::layer()
-                    .pretty()
-                    .with_writer(std::sync::Mutex::new(file))
-                    .boxed(),
-            };
-
-            let console_layer = match config.format {
-                LogFormat::Json => fmt::layer().json().boxed(),
-                LogFormat::Pretty => fmt::layer().pretty().boxed(),
-            };
-
-            registry.with(console_layer).with(file_layer).init();
+            match config.format {
+                LogFormat::Json => {
+                    let file_layer = fmt::layer()
+                        .json()
+                        .with_writer(std::sync::Mutex::new(file));
+                    let console_layer = fmt::layer().json();
+                    registry.with(console_layer).with(file_layer).init();
+                }
+                LogFormat::Pretty => {
+                    let file_layer = fmt::layer()
+                        .pretty()
+                        .with_writer(std::sync::Mutex::new(file));
+                    let console_layer = fmt::layer().pretty();
+                    registry.with(console_layer).with(file_layer).init();
+                }
+            }
         }
         (true, false) => {
             // Log to console only
-            let console_layer = match config.format {
-                LogFormat::Json => fmt::layer().json(),
-                LogFormat::Pretty => fmt::layer().pretty(),
-            };
-
-            registry.with(console_layer).init();
+            match config.format {
+                LogFormat::Json => {
+                    registry.with(fmt::layer().json()).init();
+                }
+                LogFormat::Pretty => {
+                    registry.with(fmt::layer().pretty()).init();
+                }
+            }
         }
         (false, true) => {
             // Log to file only
@@ -59,16 +60,20 @@ pub fn init_logger(config: &LoggingConfig) -> Result<(), Box<dyn std::error::Err
                 .append(true)
                 .open(&config.log_file_path)?;
 
-            let file_layer = match config.format {
-                LogFormat::Json => fmt::layer()
-                    .json()
-                    .with_writer(std::sync::Mutex::new(file)),
-                LogFormat::Pretty => fmt::layer()
-                    .pretty()
-                    .with_writer(std::sync::Mutex::new(file)),
-            };
-
-            registry.with(file_layer).init();
+            match config.format {
+                LogFormat::Json => {
+                    let file_layer = fmt::layer()
+                        .json()
+                        .with_writer(std::sync::Mutex::new(file));
+                    registry.with(file_layer).init();
+                }
+                LogFormat::Pretty => {
+                    let file_layer = fmt::layer()
+                        .pretty()
+                        .with_writer(std::sync::Mutex::new(file));
+                    registry.with(file_layer).init();
+                }
+            }
         }
         (false, false) => {
             // No logging (fallback to console with minimal output)

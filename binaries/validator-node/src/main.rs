@@ -5,7 +5,7 @@
 
 use clap::Parser;
 use common::{logger, Result, VotingError};
-use node::{NodeConfig, NodeType, ValidatorNode};
+use node::{ValidatorNode, Node, NodeConfig, NodeType};
 use std::path::PathBuf;
 use tokio::signal;
 use tracing::{error, info};
@@ -81,9 +81,15 @@ async fn main() -> Result<()> {
         log_to_console: true,
         log_to_file: args.log_to_file,
         log_file_path: args.log_file.clone().unwrap_or_else(|| {
-            args.data_dir.join("logs").join("validator.log")
+            args.data_dir.join("logs").join("full-node.log")
         }),
         format: common::config::LogFormat::Pretty,
+        enable_metrics: args.enable_metrics,
+        metrics_addr: if args.enable_metrics {
+            Some(args.metrics_addr.parse().expect("Invalid metrics address"))
+        } else {
+            None
+        },
     };
 
     logger::init_logger(&logging_config)
@@ -94,10 +100,10 @@ async fn main() -> Result<()> {
     info!("Data directory: {}", args.data_dir.display());
     info!("Validator key: {}", args.validator_key.display());
 
-    let config = if let Some(config_path) = args.config {
-        info!("Loading configuration from: {}", config_path.display());
-        NodeConfig::from_file(config_path.to_str().unwrap())
-            .map_err(|e| VotingError::ConfigurationError(format!("Failed to load config: {}", e)))?
+    let config = if args.config.is_some() {
+        return Err(VotingError::ConfigurationError(
+            "Config file loading not yet implemented. Use command-line args.".to_string()
+        ));
     } else {
         info!("Using command-line configuration");
         build_config_from_args(&args)?
@@ -186,27 +192,33 @@ fn build_config_from_args(args: &Args) -> Result<NodeConfig> {
     };
 
     let storage_config = common::config::StorageConfig {
-        db_path: args.data_dir.join("blockchain"),
-        cache_size_mb: 256,
-        enable_pruning: false,
-        pruning_retention_days: 0,
+        data_dir: args.data_dir.clone(),
+        blockchain_db_path: args.data_dir.join("blockchain"),
+        state_db_path: args.data_dir.join("state"),
         enable_compression: true,
+        cache_size_mb: 512,
+        enable_pruning: false,
+        pruning_days: 0,
     };
 
     let consensus_config = common::config::ConsensusConfig {
-        block_time_ms: 10000,
+        algorithm: common::config::ConsensusAlgorithm::ProofOfAuthority,
+        block_time: 10,
         min_validators: 3,
-        max_validators: 100,
         finality_threshold: 0.67,
+        is_validator: true,
+        validator_key_path: Some(args.validator_key.clone()),
     };
 
     let rpc_config = common::config::RpcConfig {
         enabled: args.enable_rpc,
-        listen_addr: args.rpc_addr.clone(),
-        max_connections: 100,
-        request_timeout_ms: 30000,
+        listen_addr: args.rpc_addr.parse()
+            .map_err(|e| VotingError::ConfigurationError(format!("Invalid RPC address: {}", e)))?,
+        cors_origins: vec!["*".to_string()],
+        request_timeout: 30,
+        max_request_size: 10 * 1024 * 1024,
+        rate_limit: 100,
         enable_cors: true,
-        allowed_origins: vec!["*".to_string()],
     };
 
     Ok(NodeConfig {

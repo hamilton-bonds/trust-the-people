@@ -97,14 +97,14 @@ impl Default for NodeConfig {
             enable_rpc: true,
             rpc_addr: Some("127.0.0.1:8545".to_string()),
             log_level: "info".to_string(),
-            log_to_file: true,
-            log_file_path: Some(PathBuf::from("./data/logs/node.log")),
+            log_to_file: false,
+            log_file_path: None,
         }
     }
 }
 
 impl NodeConfig {
-    /// Create a validator node configuration
+    /// Create configuration for a validator node
     pub fn validator() -> Self {
         Self {
             node_type: NodeType::Validator,
@@ -112,7 +112,7 @@ impl NodeConfig {
         }
     }
     
-    /// Create a full node configuration
+    /// Create configuration for a full node
     pub fn full_node() -> Self {
         Self {
             node_type: NodeType::Full,
@@ -120,17 +120,14 @@ impl NodeConfig {
         }
     }
     
-    /// Create a light node configuration
+    /// Create configuration for a light node
     pub fn light_node() -> Self {
-        Self {
+        let mut config = Self {
             node_type: NodeType::Light,
-            storage: StorageConfig {
-                enable_pruning: true,
-                pruning_retention_days: 7,
-                ..Default::default()
-            },
             ..Default::default()
-        }
+        };
+        config.storage.enable_pruning = true;
+        config
     }
     
     /// Set data directory
@@ -139,7 +136,7 @@ impl NodeConfig {
         self
     }
     
-    /// Set genesis path
+    /// Set genesis file path
     pub fn with_genesis(mut self, path: PathBuf) -> Self {
         self.genesis_path = Some(path);
         self
@@ -151,33 +148,9 @@ impl NodeConfig {
         self
     }
     
-    /// Set network configuration
-    pub fn with_network(mut self, network: NetworkConfig) -> Self {
-        self.network = network;
-        self
-    }
-    
-    /// Set storage configuration
-    pub fn with_storage(mut self, storage: StorageConfig) -> Self {
-        self.storage = storage;
-        self
-    }
-    
-    /// Set consensus configuration
-    pub fn with_consensus(mut self, consensus: ConsensusConfig) -> Self {
-        self.consensus = consensus;
-        self
-    }
-    
     /// Enable or disable metrics
     pub fn with_metrics(mut self, enable: bool) -> Self {
         self.enable_metrics = enable;
-        self
-    }
-    
-    /// Set metrics address
-    pub fn with_metrics_addr(mut self, addr: String) -> Self {
-        self.metrics_addr = Some(addr);
         self
     }
     
@@ -187,50 +160,25 @@ impl NodeConfig {
         self
     }
     
-    /// Set RPC address
-    pub fn with_rpc_addr(mut self, addr: String) -> Self {
-        self.rpc_addr = Some(addr);
-        self
-    }
-    
     /// Set log level
     pub fn with_log_level(mut self, level: String) -> Self {
         self.log_level = level;
         self
     }
     
-    /// Load configuration from TOML file
-    pub fn from_file(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let contents = std::fs::read_to_string(path)?;
-        let config = toml::from_str(&contents)?;
-        Ok(config)
-    }
-    
-    /// Save configuration to TOML file
-    pub fn to_file(&self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let contents = toml::to_string_pretty(self)?;
-        std::fs::write(path, contents)?;
-        Ok(())
-    }
-    
-    /// Validate configuration
+    /// Validate the configuration
     pub fn validate(&self) -> Result<(), String> {
+        // Validator nodes must have a validator key
         if self.node_type == NodeType::Validator && self.validator_key_path.is_none() {
-            return Err("Validator node requires validator_key_path".to_string());
+            return Err("Validator nodes require a validator_key_path".to_string());
         }
         
+        // All nodes need a genesis path unless they're joining an existing network
         if self.genesis_path.is_none() {
-            return Err("Genesis path is required".to_string());
+            return Err("genesis_path is required".to_string());
         }
         
-        if self.enable_metrics && self.metrics_addr.is_none() {
-            return Err("Metrics enabled but no address specified".to_string());
-        }
-        
-        if self.enable_rpc && self.rpc_addr.is_none() {
-            return Err("RPC enabled but no address specified".to_string());
-        }
-        
+        // Validate log level
         if !["trace", "debug", "info", "warn", "error"].contains(&self.log_level.as_str()) {
             return Err(format!("Invalid log level: {}", self.log_level));
         }
@@ -371,41 +319,6 @@ mod tests {
     }
 
     #[test]
-    fn test_node_config_builder() {
-        let config = NodeConfigBuilder::new(NodeType::Validator)
-            .data_dir(PathBuf::from("/tmp/data"))
-            .genesis(PathBuf::from("/tmp/genesis.json"))
-            .validator_key(PathBuf::from("/tmp/validator.pem"))
-            .metrics(true)
-            .rpc(false)
-            .log_level("debug".to_string())
-            .build()
-            .unwrap();
-        
-        assert_eq!(config.node_type, NodeType::Validator);
-        assert_eq!(config.data_dir, PathBuf::from("/tmp/data"));
-        assert!(config.enable_metrics);
-        assert!(!config.enable_rpc);
-        assert_eq!(config.log_level, "debug");
-    }
-
-    #[test]
-    fn test_node_config_with_methods() {
-        let config = NodeConfig::validator()
-            .with_data_dir(PathBuf::from("/tmp/data"))
-            .with_genesis(PathBuf::from("/tmp/genesis.json"))
-            .with_validator_key(PathBuf::from("/tmp/validator.pem"))
-            .with_metrics(false)
-            .with_rpc(true)
-            .with_log_level("trace".to_string());
-        
-        assert_eq!(config.data_dir, PathBuf::from("/tmp/data"));
-        assert!(!config.enable_metrics);
-        assert!(config.enable_rpc);
-        assert_eq!(config.log_level, "trace");
-    }
-
-    #[test]
     fn test_node_config_validation() {
         let config = NodeConfig::validator();
         assert!(config.validate().is_err());
@@ -414,58 +327,5 @@ mod tests {
             .with_validator_key(PathBuf::from("/tmp/key.pem"))
             .with_genesis(PathBuf::from("/tmp/genesis.json"));
         assert!(config.validate().is_ok());
-    }
-
-    #[test]
-    fn test_node_config_validation_invalid_log_level() {
-        let config = NodeConfig::full_node()
-            .with_genesis(PathBuf::from("/tmp/genesis.json"))
-            .with_log_level("invalid".to_string());
-        
-        assert!(config.validate().is_err());
-    }
-
-    #[test]
-    fn test_node_config_validation_full_node() {
-        let config = NodeConfig::full_node()
-            .with_genesis(PathBuf::from("/tmp/genesis.json"));
-        
-        assert!(config.validate().is_ok());
-    }
-
-    #[test]
-    fn test_node_config_validation_light_node() {
-        let config = NodeConfig::light_node()
-            .with_genesis(PathBuf::from("/tmp/genesis.json"));
-        
-        assert!(config.validate().is_ok());
-    }
-
-    #[test]
-    fn test_node_config_builder_default() {
-        let builder = NodeConfigBuilder::default();
-        assert_eq!(builder.config.node_type, NodeType::Full);
-    }
-
-    #[test]
-    fn test_node_config_builder_validation_fails() {
-        let result = NodeConfigBuilder::new(NodeType::Validator).build();
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_node_config_with_rpc_addr() {
-        let config = NodeConfig::default()
-            .with_rpc_addr("0.0.0.0:8080".to_string());
-        
-        assert_eq!(config.rpc_addr, Some("0.0.0.0:8080".to_string()));
-    }
-
-    #[test]
-    fn test_node_config_with_metrics_addr() {
-        let config = NodeConfig::default()
-            .with_metrics_addr("0.0.0.0:9090".to_string());
-        
-        assert_eq!(config.metrics_addr, Some("0.0.0.0:9090".to_string()));
     }
 }

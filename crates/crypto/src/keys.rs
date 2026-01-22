@@ -365,6 +365,14 @@ impl KeyPair {
         let private = PrivateKey::load_from_file(path, password)?;
         Self::from_private_key(private)
     }
+    
+    /// Sign a message and return signature
+    pub fn sign_message(&self, message: &[u8]) -> Result<ed25519_dalek::Signature> {
+        use ed25519_dalek::Signer;
+        let signing_key = self.private.to_signing_key()?;
+        let signature = signing_key.sign(message);
+        Ok(signature)
+    }
 }
 
 impl fmt::Debug for KeyPair {

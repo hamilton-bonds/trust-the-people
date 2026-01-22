@@ -4,6 +4,7 @@
 //! for vote verification, tallies, analytics, and anomaly detection.
 
 use common::{Result, VotingError};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::io::{self, Write};
@@ -396,7 +397,7 @@ pub fn display_validators(validators: &Value, format: DisplayFormat) -> Result<(
 }
 
 /// Anomaly report structure
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct AnomalyReport {
     pub anomaly_type: String,
     pub location: String,
