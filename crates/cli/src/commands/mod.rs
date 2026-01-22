@@ -9,6 +9,8 @@
 pub mod node;
 pub mod query;
 pub mod verify;
+pub mod keygen;
+pub mod genesis;
 
 use common::{Result, VotingError};
 use serde_json::Value;

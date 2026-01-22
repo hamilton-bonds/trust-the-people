@@ -19,6 +19,11 @@ if [ ! -f "./target/release/validator-node" ]; then
     exit 1
 fi
 
+if [ ! -f "./target/release/voting-cli" ]; then
+    echo "Error: CLI binary not found. Please run 'cargo build --release' first."
+    exit 1
+fi
+
 # Clean up previous testnet data
 echo "Cleaning up previous testnet data..."
 rm -rf ./data/testnet
@@ -30,18 +35,18 @@ echo ""
 
 # Generate validator keys
 echo "Generating validator keys..."
-cargo run --release --bin cli -- generate-keys --output ./data/testnet/keys/validator1.pem > /dev/null 2>&1
-cargo run --release --bin cli -- generate-keys --output ./data/testnet/keys/validator2.pem > /dev/null 2>&1
-cargo run --release --bin cli -- generate-keys --output ./data/testnet/keys/validator3.pem > /dev/null 2>&1
+./target/release/voting-cli generate-keys --output ./data/testnet/keys/validator1.pem
+./target/release/voting-cli generate-keys --output ./data/testnet/keys/validator2.pem
+./target/release/voting-cli generate-keys --output ./data/testnet/keys/validator3.pem
 echo "✓ Generated 3 validator keypairs"
 echo ""
 
 # Generate genesis block
 echo "Generating genesis block..."
-cargo run --release --bin cli -- generate-genesis \
+./target/release/voting-cli generate-genesis \
   --validators ./data/testnet/keys/validator1.pem,./data/testnet/keys/validator2.pem,./data/testnet/keys/validator3.pem \
   --chain-id testnet-1 \
-  --output ./data/testnet/genesis.json > /dev/null 2>&1
+  --output ./data/testnet/genesis.json
 echo "✓ Genesis block created"
 echo ""
 
@@ -171,6 +176,9 @@ echo "  watch -n 2 'curl -s http://127.0.0.1:8545 -d \"{\\\"jsonrpc\\\":\\\"2.0\
 echo ""
 echo "To stop the testnet:"
 echo "  ./scripts/stop-local-testnet.sh"
+echo ""
+echo "To check status:"
+echo "  ./scripts/check-testnet-status.sh"
 echo ""
 echo "Press Ctrl+C to stop monitoring (nodes will continue running)"
 echo ""

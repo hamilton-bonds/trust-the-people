@@ -1,0 +1,55 @@
+  [2m2026-01-22T19:53:01.860611Z[0m [32m INFO[0m [1;32mcommon::logger[0m[32m: [32mLogger initialized at info level[0m
+    [2;3mat[0m crates/common/src/logger.rs:84
+
+  [2m2026-01-22T19:53:01.860658Z[0m [32m INFO[0m [1;32mlight_node[0m[32m: [32mStarting light node[0m
+    [2;3mat[0m binaries/light-node/src/main.rs:112
+
+  [2m2026-01-22T19:53:01.860665Z[0m [32m INFO[0m [1;32mlight_node[0m[32m: [32mVersion: 0.1.0[0m
+    [2;3mat[0m binaries/light-node/src/main.rs:113
+
+  [2m2026-01-22T19:53:01.860669Z[0m [32m INFO[0m [1;32mlight_node[0m[32m: [32mData directory: ./data/testnet/light1[0m
+    [2;3mat[0m binaries/light-node/src/main.rs:114
+
+  [2m2026-01-22T19:53:01.860675Z[0m [32m INFO[0m [1;32mlight_node[0m[32m: [32mUsing command-line configuration[0m
+    [2;3mat[0m binaries/light-node/src/main.rs:131
+
+  [2m2026-01-22T19:53:01.860698Z[0m [32m INFO[0m [1;32mlight_node[0m[32m: [32mConfigured 2 bootstrap peer(s)[0m
+    [2;3mat[0m binaries/light-node/src/main.rs:236
+
+  [2m2026-01-22T19:53:01.860705Z[0m [32m INFO[0m [1;32mlight_node[0m[32m: [32mConfiguration validated successfully[0m
+    [2;3mat[0m binaries/light-node/src/main.rs:138
+
+  [2m2026-01-22T19:53:01.860707Z[0m [32m INFO[0m [1;32mlight_node[0m[32m: [32mNetwork ID: testnet[0m
+    [2;3mat[0m binaries/light-node/src/main.rs:139
+
+  [2m2026-01-22T19:53:01.860710Z[0m [32m INFO[0m [1;32mlight_node[0m[32m: [32mListen address: 127.0.0.1:9004[0m
+    [2;3mat[0m binaries/light-node/src/main.rs:140
+
+  [2m2026-01-22T19:53:01.860726Z[0m [32m INFO[0m [1;32mlight_node[0m[32m: [32mBootstrap peers: 2[0m
+    [2;3mat[0m binaries/light-node/src/main.rs:141
+
+  [2m2026-01-22T19:53:01.860729Z[0m [32m INFO[0m [1;32mlight_node[0m[32m: [32mCache size: 64MB[0m
+    [2;3mat[0m binaries/light-node/src/main.rs:142
+
+  [2m2026-01-22T19:53:01.860731Z[0m [32m INFO[0m [1;32mlight_node[0m[32m: [32mRPC server will be available at: 127.0.0.1:8549[0m
+    [2;3mat[0m binaries/light-node/src/main.rs:145
+
+  [2m2026-01-22T19:53:01.860734Z[0m [32m INFO[0m [1;32mlight_node[0m[32m: [32mLight node uses minimal storage and bandwidth[0m
+    [2;3mat[0m binaries/light-node/src/main.rs:152
+
+  [2m2026-01-22T19:53:01.860749Z[0m [32m INFO[0m [1;32mlight_node[0m[32m: [32mOnly block headers are stored locally[0m
+    [2;3mat[0m binaries/light-node/src/main.rs:153
+
+  [2m2026-01-22T19:53:01.861341Z[0m [32m INFO[0m [1;32mlight_node[0m[32m: [32mLight node created successfully[0m
+    [2;3mat[0m binaries/light-node/src/main.rs:161
+
+  [2m2026-01-22T19:53:01.861376Z[0m [32m INFO[0m [1;32mlight_node[0m[32m: [32mStarting light node...[0m
+    [2;3mat[0m binaries/light-node/src/main.rs:163
+
+  [2m2026-01-22T19:53:01.862215Z[0m [32m INFO[0m [1;32mnetwork::transport[0m[32m: [32mTransport listening on 127.0.0.1:9004[0m
+    [2;3mat[0m crates/network/src/transport.rs:55
+
+  [2m2026-01-22T19:53:01.862663Z[0m [31mERROR[0m [1;31mlight_node[0m[31m: [31mFailed to start light node: Network error: Failed to connect: Connection refused (os error 111)[0m
+    [2;3mat[0m binaries/light-node/src/main.rs:165
+
+Error: NetworkError("Failed to connect: Connection refused (os error 111)")

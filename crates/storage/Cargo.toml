@@ -50,7 +50,7 @@ tempfile = "3.8"
 criterion = "0.5"
 
 [features]
-default = ["sled-backend"]
+default = ["rocksdb-backend"]
 sled-backend = ["sled"]
 rocksdb-backend = ["rocksdb"]
 compression = ["zstd"]

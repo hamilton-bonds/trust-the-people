@@ -1,27 +1,20 @@
 //! Command-line interface for the blockchain voting system
-//!
-//! This CLI provides tools for:
-//! - Running validator, full, and light nodes
-//! - Verifying vote receipts
-//! - Querying blockchain data
-//! - Auditing election results
-//! - Managing node configuration
 
 use clap::{Parser, Subcommand};
-use common::{Result, VotingError};
+use common::Result;
 use std::path::PathBuf;
-use tracing::{error, info};
+use tracing::error;
 
 mod commands;
 mod ui;
 
-use commands::{node, query, verify };
+use commands::{genesis, keygen, node, query, verify};
 
 /// Blockchain Voting System CLI
 #[derive(Parser)]
 #[command(name = "voting-cli")]
 #[command(version = "1.0.0")]
-#[command(about = "Blockchain-based voting system for secure, transparent elections", long_about = None)]
+#[command(about = "Blockchain-based voting system for secure, transparent elections")]
 struct Cli {
     /// Enable verbose logging
     #[arg(short, long, global = true)]
@@ -41,6 +34,28 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Generate validator keypair
+    GenerateKeys {
+        /// Output file path for the keypair
+        #[arg(short, long)]
+        output: PathBuf,
+    },
+
+    /// Generate genesis block
+    GenerateGenesis {
+        /// Comma-separated list of validator key files
+        #[arg(short, long)]
+        validators: String,
+
+        /// Chain ID (e.g., "testnet-1", "mainnet")
+        #[arg(short, long, default_value = "voting-chain")]
+        chain_id: String,
+
+        /// Output file path for genesis.json
+        #[arg(short, long)]
+        output: PathBuf,
+    },
+
     /// Node operations (start, stop, status)
     #[command(subcommand)]
     Node(NodeCommands),
@@ -56,7 +71,7 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum NodeCommands {
-    /// Start a node (validator, full, or light)
+    /// Start a node
     Start {
         /// Node type (validator, full, light)
         #[arg(short, long, default_value = "full")]
@@ -97,7 +112,7 @@ enum NodeCommands {
         rpc: String,
     },
 
-    /// Show node information
+    /// Get node information
     Info {
         /// RPC endpoint
         #[arg(short, long, default_value = "http://127.0.0.1:8545")]
@@ -107,9 +122,9 @@ enum NodeCommands {
 
 #[derive(Subcommand)]
 enum QueryCommands {
-    /// Get block information
+    /// Query a block
     Block {
-        /// Block hash or height
+        /// Block identifier (height or hash)
         #[arg(short, long)]
         identifier: String,
 
@@ -118,7 +133,7 @@ enum QueryCommands {
         rpc: String,
     },
 
-    /// Get transaction information
+    /// Query a transaction
     Transaction {
         /// Transaction hash
         #[arg(short, long)]
@@ -129,7 +144,7 @@ enum QueryCommands {
         rpc: String,
     },
 
-    /// Get election information
+    /// Query an election
     Election {
         /// Election ID
         #[arg(short, long)]
@@ -140,7 +155,7 @@ enum QueryCommands {
         rpc: String,
     },
 
-    /// Get election results
+    /// Query election results
     Results {
         /// Election ID
         #[arg(short, long)]
@@ -151,7 +166,7 @@ enum QueryCommands {
         rpc: String,
     },
 
-    /// Get validator information
+    /// Query a validator
     Validator {
         /// Validator address
         #[arg(short, long)]
@@ -162,10 +177,10 @@ enum QueryCommands {
         rpc: String,
     },
 
-    /// List all validators
+    /// Query all validators
     Validators {
         /// Block height (optional)
-        #[arg(short = 'b', long)]
+        #[arg(short, long)]
         height: Option<u64>,
 
         /// RPC endpoint
@@ -173,7 +188,7 @@ enum QueryCommands {
         rpc: String,
     },
 
-    /// Get chain information
+    /// Query chain information
     Chain {
         /// RPC endpoint
         #[arg(short, long, default_value = "http://127.0.0.1:8545")]
@@ -185,7 +200,7 @@ enum QueryCommands {
 enum VerifyCommands {
     /// Verify a vote receipt
     Receipt {
-        /// Receipt ID or confirmation code
+        /// Receipt ID
         #[arg(short, long)]
         receipt: String,
 
@@ -200,7 +215,7 @@ enum VerifyCommands {
         #[arg(short, long)]
         tx_hash: String,
 
-        /// Zero-knowledge proof (hex encoded)
+        /// Zero-knowledge proof
         #[arg(short, long)]
         proof: String,
 
@@ -215,7 +230,7 @@ enum VerifyCommands {
         #[arg(short, long, default_value = "0")]
         start: u64,
 
-        /// End height (optional, defaults to latest)
+        /// End height
         #[arg(short, long)]
         end: Option<u64>,
 
@@ -251,6 +266,18 @@ async fn main() -> Result<()> {
 
     // Execute command
     let result = match cli.command {
+        Commands::GenerateKeys { output } => {
+            keygen::generate_keys(&output)
+        }
+
+        Commands::GenerateGenesis {
+            validators,
+            chain_id,
+            output,
+        } => {
+            genesis::generate_genesis(&validators, &chain_id, &output)
+        }
+
         Commands::Node(cmd) => match cmd {
             NodeCommands::Start {
                 node_type,
