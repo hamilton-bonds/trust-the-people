@@ -5,10 +5,10 @@
 //! - Sync status
 //! - Health checks
 
-use crate::{HealthResponse, NodeInfo, SyncStatusResponse};
+use crate::{NodeInfo, SyncStatusResponse};
 use blockchain_core::chain::Blockchain;
-use common::{Result, VotingError};
-use network::{NetworkManager};
+use common::Result;
+use network::NetworkManager;
 use storage::Database;
 use std::sync::Arc;
 use std::time::Instant;
@@ -22,21 +22,18 @@ pub struct NodeMethods {
     public_key: Option<String>,
     chain: Arc<RwLock<Blockchain>>,
     network_manager: Arc<RwLock<NetworkManager>>,
-    sync_manager: Arc<RwLock<network::sync::SyncManager>>,
     database: Arc<dyn Database>,
     start_time: Instant,
 }
 
 impl NodeMethods {
-    /// Create new node methods handler
     pub fn new(
         node_type: String,
         version: String,
         network_id: String,
         public_key: Option<String>,
-        chain: Arc<RwLock<Chain>>,
+        chain: Arc<RwLock<Blockchain>>,
         network_manager: Arc<RwLock<NetworkManager>>,
-        sync_manager: Arc<RwLock<SyncManager>>,
         database: Arc<dyn Database>,
     ) -> Self {
         Self {
@@ -46,17 +43,15 @@ impl NodeMethods {
             public_key,
             chain,
             network_manager,
-            sync_manager,
             database,
             start_time: Instant::now(),
         }
     }
 
-    /// Get node information
     pub async fn node_info(&self) -> Result<NodeInfo> {
         let chain = self.chain.read().await;
         let network_manager = self.network_manager.read().await;
-        let sync_manager = self.sync_manager.read().await;
+        let sync_status = network_manager.sync_status().await;
 
         let latest_block = chain.latest_block();
 
@@ -68,78 +63,56 @@ impl NodeMethods {
             height: chain.height(),
             latest_block_hash: latest_block.hash().to_hex(),
             peer_count: network_manager.peer_count().await,
-            syncing: sync_manager.is_syncing(),
+            syncing: sync_status.is_syncing(),
             uptime: self.start_time.elapsed().as_secs(),
         })
     }
 
-    /// Get node sync status
     pub async fn sync_status(&self) -> Result<SyncStatusResponse> {
         let chain = self.chain.read().await;
-        let sync_manager = self.sync_manager.read().await;
-
+        let network_manager = self.network_manager.read().await;
+        
+        let sync_status = network_manager.sync_status().await;
         let current_height = chain.height();
-        let target_height = sync_manager.target_height().unwrap_or(current_height);
-        let syncing = sync_manager.is_syncing();
 
-        let progress = if target_height > 0 {
-            (current_height as f64 / target_height as f64) * 100.0
-        } else {
-            100.0
-        };
-
-        let estimated_time_remaining = if syncing && target_height > current_height {
-            let blocks_remaining = target_height - current_height;
-            let sync_rate = sync_manager.blocks_per_second();
-            
-            if sync_rate > 0.0 {
-                Some((blocks_remaining as f64 / sync_rate) as u64)
-            } else {
-                None
-            }
-        } else {
-            None
-        };
+        let progress = sync_status.progress_percent();
+        let estimated_time_remaining = sync_status.estimated_completion.map(|completion| {
+            completion.saturating_sub(common::utils::current_timestamp())
+        });
 
         Ok(SyncStatusResponse {
-            syncing,
+            syncing: sync_status.is_syncing(),
             current_height,
-            target_height,
+            target_height: sync_status.target_height,
             progress,
             estimated_time_remaining,
         })
     }
 
-    /// Get health status
-    pub async fn health(&self) -> Result<HealthResponse> {
-        let database_status = self.check_database_health().await;
-        let network_status = self.check_network_health().await;
-        let consensus_status = self.check_consensus_health().await;
+    pub async fn health(&self) -> Result<crate::HealthResponse> {
+        let database_health = self.check_database_health().await;
+        let network_health = self.check_network_health().await;
+        let consensus_health = self.check_consensus_health().await;
 
-        let overall_status = if database_status == "ok"
-            && network_status == "ok"
-            && consensus_status == "ok"
-        {
-            "healthy"
-        } else if database_status == "error" {
-            "critical"
+        let overall_status = if database_health == "ok" && network_health == "ok" && consensus_health == "ok" {
+            "ok".to_string()
+        } else if database_health == "error" || network_health == "error" {
+            "error".to_string()
         } else {
-            "degraded"
+            "degraded".to_string()
         };
 
-        Ok(HealthResponse {
-            status: overall_status.to_string(),
-            database: database_status,
-            network: network_status,
-            consensus: consensus_status,
+        Ok(crate::HealthResponse {
+            status: overall_status,
+            database: database_health,
+            network: network_health,
+            consensus: consensus_health,
             timestamp: common::utils::current_timestamp(),
         })
     }
 
-    // Helper methods
-
     async fn check_database_health(&self) -> String {
-        // Try a simple database operation
+        // Database trait has `get()` method, not `health_check()`
         match self.database.get(b"health_check") {
             Ok(_) => "ok".to_string(),
             Err(e) => {
@@ -151,9 +124,8 @@ impl NodeMethods {
 
     async fn check_network_health(&self) -> String {
         let network_manager = self.network_manager.read().await;
-        let peer_count = network_manager.peer_count();
+        let peer_count = network_manager.peer_count().await;
         
-        let peer_count = peer_count.await;
         if peer_count == 0 {
             "warning".to_string()
         } else if peer_count < 3 {
@@ -165,21 +137,19 @@ impl NodeMethods {
 
     async fn check_consensus_health(&self) -> String {
         let chain = self.chain.read().await;
-        let sync_manager = self.sync_manager.read().await;
+        let network_manager = self.network_manager.read().await;
+        let sync_status = network_manager.sync_status().await;
 
-        // Check if we're severely out of sync
-        if let Some(target_height) = sync_manager.target_height() {
-            let current_height = chain.height();
-            let blocks_behind = target_height.saturating_sub(current_height);
+        let current_height = chain.height();
+        let blocks_behind = sync_status.target_height.saturating_sub(current_height);
 
-            if blocks_behind > 1000 {
-                return "warning".to_string();
-            } else if blocks_behind > 100 {
-                return "degraded".to_string();
-            }
+        if blocks_behind > 1000 {
+            "warning".to_string()
+        } else if blocks_behind > 100 {
+            "degraded".to_string()
+        } else {
+            "ok".to_string()
         }
-
-        "ok".to_string()
     }
 }
 

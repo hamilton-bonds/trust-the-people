@@ -7,8 +7,8 @@
 
 use crate::{MempoolResponse, PeerInfo, PeersResponse, SubmitResponse, TransactionSummary};
 use blockchain_core::Transaction;
-use common::{Result, VotingError};
-use network::{NetworkManager, peer::PeerManager};
+use common::Result;
+use network::{NetworkManager, peer::PeerManager, Message};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -19,7 +19,6 @@ pub struct NetworkMethods {
 }
 
 impl NetworkMethods {
-    /// Create new network methods handler
     pub fn new(
         network_manager: Arc<RwLock<NetworkManager>>,
         peer_manager: Arc<RwLock<PeerManager>>,
@@ -30,22 +29,22 @@ impl NetworkMethods {
         }
     }
 
-    /// Get connected peers
     pub async fn get_peers(&self) -> Result<PeersResponse> {
         let peer_manager = self.peer_manager.read().await;
-        let peers = peer_manager.get_peers().await;
+        // Use get_all_peers() from PeerManager
+        let peers = peer_manager.get_all_peers().await;
+        
         let peer_infos = peers
             .iter()
             .map(|peer| PeerInfo {
                 peer_id: peer.id.to_string(),
                 address: peer.addr.to_string(),
-                direction: if peer.is_inbound {
-                    "inbound".to_string()
-                } else {
-                    "outbound".to_string()
+                direction: match peer.direction {
+                    network::peer::ConnectionDirection::Inbound => "inbound".to_string(),
+                    network::peer::ConnectionDirection::Outbound => "outbound".to_string(),
                 },
                 height: peer.best_height,
-                connected_duration: peer.connected_duration_secs(),
+                connected_duration: peer.uptime(),
             })
             .collect();
 
@@ -55,7 +54,6 @@ impl NetworkMethods {
         })
     }
 
-    /// Get mempool status
     pub async fn get_mempool(&self) -> Result<MempoolResponse> {
         let _network_manager = self.network_manager.read().await;
         let pending_txs: Vec<Transaction> = Vec::new(); // TODO: implement get_pending_transactions
@@ -65,7 +63,7 @@ impl NetworkMethods {
             .map(|tx| TransactionSummary {
                 id: tx.id.to_hex(),
                 tx_type: tx.transaction_type_name().to_string(),
-                block_height: 0, // Not yet in a block
+                block_height: 0,
                 timestamp: tx.timestamp,
             })
             .collect();
@@ -76,21 +74,18 @@ impl NetworkMethods {
         })
     }
 
-    /// Submit transaction to network
     pub async fn submit_transaction(&self, tx_hex: String) -> Result<SubmitResponse> {
-        // Decode transaction from hex
         let tx_bytes = hex::decode(&tx_hex).map_err(|e| {
-            VotingError::InvalidTransaction(format!("Invalid hex encoding: {}", e))
+            common::VotingError::InvalidTransaction(format!("Invalid hex encoding: {}", e))
         })?;
 
         let tx: Transaction = common::utils::deserialize(&tx_bytes)?;
-
-        // Validate transaction
         tx.validate()?;
 
-        // Submit to network
+        // Broadcast using NetworkManager
         let network_manager = self.network_manager.write().await;
-        network_manager.broadcast_transaction(tx.clone()).await?;
+        let message = Message::new_transaction(tx.clone())?;
+        network_manager.broadcast(message).await?;
         
         Ok(SubmitResponse {
             tx_id: tx.id.to_hex(),

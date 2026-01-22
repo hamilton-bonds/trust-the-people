@@ -9,8 +9,8 @@ use crate::{
     Candidate, CandidateResult, ElectionResponse, ElectionResultsResponse, JurisdictionInfo,
     ValidatorResponse, ValidatorSetResponse, VerifyVoteRequest, VerifyVoteResponse, VoteResponse,
 };
-use blockchain_core::{chain::Blockchain, Transaction, TransactionType};
-use common::{ElectionId, Result, TxId, VotingError};
+use blockchain_core::{chain::Blockchain, TransactionType};
+use common::{ElectionId, Result, TxId};
 use storage::StateStore;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -23,25 +23,23 @@ pub struct ValidationMethods {
 }
 
 impl ValidationMethods {
-    /// Create new validation methods handler
     pub fn new(chain: Arc<RwLock<Blockchain>>, state_store: Arc<RwLock<StateStore>>) -> Self {
         Self { chain, state_store }
     }
 
-    /// Get vote by transaction hash
     pub async fn get_vote(&self, tx_hash: String) -> Result<VoteResponse> {
         let tx_id = TxId::from_hex(&tx_hash)
-            .map_err(|_| VotingError::InvalidTransaction("Invalid transaction hash".to_string()))?;
+            .map_err(|_| common::VotingError::InvalidTransaction("Invalid transaction hash".to_string()))?;
 
         let chain = self.chain.read().await;
         let tx = chain
             .get_transaction(&tx_id)
-            .ok_or_else(|| VotingError::TransactionNotFound(tx_hash))?;
+            .ok_or_else(|| common::VotingError::TransactionNotFound(tx_hash))?;
 
         if let TransactionType::Vote(vote_tx) = &tx.tx_type {
             let block_height = chain
                 .get_transaction_block_height(&tx_id)
-                .ok_or_else(|| VotingError::TransactionNotFound(tx_id.to_hex()))?;
+                .ok_or_else(|| common::VotingError::TransactionNotFound(tx_id.to_hex()))?;
 
             Ok(VoteResponse {
                 tx_id: tx.id.to_hex(),
@@ -50,29 +48,26 @@ impl ValidationMethods {
                 timestamp: tx.timestamp,
                 block_height,
                 zk_proof: vote_tx.validity_proof.as_ref().map(|p| hex::encode(p)),
-                verified: true, // If it's in a block, it was verified
+                verified: true,
             })
         } else {
-            Err(VotingError::InvalidTransaction(
+            Err(common::VotingError::InvalidTransaction(
                 "Transaction is not a vote".to_string(),
             ))
         }
     }
 
-    /// Verify vote with zero-knowledge proof
     pub async fn verify_vote(&self, request: VerifyVoteRequest) -> Result<VerifyVoteResponse> {
         let tx_id = TxId::from_hex(&request.tx_id)
-            .map_err(|_| VotingError::InvalidTransaction("Invalid transaction hash".to_string()))?;
+            .map_err(|_| common::VotingError::InvalidTransaction("Invalid transaction hash".to_string()))?;
 
         let chain = self.chain.read().await;
         let tx = chain
             .get_transaction(&tx_id)
-            .ok_or_else(|| VotingError::TransactionNotFound(request.tx_id.clone()))?;
+            .ok_or_else(|| common::VotingError::TransactionNotFound(request.tx_id.clone()))?;
 
         if let TransactionType::Vote(vote_tx) = &tx.tx_type {
-            // Check if proof exists
             let valid = vote_tx.validity_proof.is_some();
-
             let block_height = chain.get_transaction_block_height(&tx_id);
 
             Ok(VerifyVoteResponse {
@@ -86,27 +81,32 @@ impl ValidationMethods {
                 election_id: Some(vote_tx.election_id.to_hex()),
             })
         } else {
-            Err(VotingError::InvalidTransaction(
+            Err(common::VotingError::InvalidTransaction(
                 "Transaction is not a vote".to_string(),
             ))
         }
     }
 
-    /// Get election information
     pub async fn get_election(&self, election_id: String) -> Result<ElectionResponse> {
         let id = ElectionId::from_hex(&election_id)
-            .map_err(|_| VotingError::InvalidTransaction("Invalid election ID".to_string()))?;
+            .map_err(|_| common::VotingError::InvalidTransaction("Invalid election ID".to_string()))?;
 
         let state_store = self.state_store.read().await;
         let election = state_store
             .get_election(&id)?
-            .ok_or_else(|| VotingError::ElectionNotFound(election_id))?;
+            .ok_or_else(|| common::VotingError::ElectionNotFound(election_id))?;
 
-        let jurisdiction = election.jurisdiction.as_ref().map(|j| JurisdictionInfo {
-            level: j.level.to_str().to_string(),
-            name: j.name.clone(),
-            parent: j.parent.clone(),
-        });
+        // Parse jurisdiction from jurisdiction_path
+        let jurisdiction = if let Some(path) = &election.jurisdiction_path {
+            let parts: Vec<&str> = path.split('/').collect();
+            Some(JurisdictionInfo {
+                level: parts.first().unwrap_or(&"").to_string(),
+                name: parts.get(1).unwrap_or(&"").to_string(),
+                parent: None,
+            })
+        } else {
+            None
+        };
 
         let candidates = election
             .candidates
@@ -115,17 +115,17 @@ impl ValidationMethods {
                 id: c.id.clone(),
                 name: c.name.clone(),
                 party: c.party.clone(),
-                vote_count: None, // Don't reveal counts until finalized
+                vote_count: None,
             })
             .collect();
 
         Ok(ElectionResponse {
             id: election.id.to_hex(),
             name: election.name.clone(),
-            description: election.description.clone(),
+            description: Some(election.description.clone()),
             start_time: election.start_time,
             end_time: election.end_time,
-            vote_count: election.vote_count,
+            vote_count: 0, // Calculate from chain if needed
             is_active: election.is_active,
             is_finalized: election.is_finalized,
             created_at_height: election.created_at_height,
@@ -135,27 +135,21 @@ impl ValidationMethods {
         })
     }
 
-    /// Get election results
-    pub async fn get_election_results(
-        &self,
-        election_id: String,
-    ) -> Result<ElectionResultsResponse> {
+    pub async fn get_election_results(&self, election_id: String) -> Result<ElectionResultsResponse> {
         let id = ElectionId::from_hex(&election_id)
-            .map_err(|_| VotingError::InvalidTransaction("Invalid election ID".to_string()))?;
+            .map_err(|_| common::VotingError::InvalidTransaction("Invalid election ID".to_string()))?;
 
         let state_store = self.state_store.read().await;
         let election = state_store
             .get_election(&id)?
-            .ok_or_else(|| VotingError::ElectionNotFound(election_id))?;
+            .ok_or_else(|| common::VotingError::ElectionNotFound(election_id))?;
 
-        // Only return results if election is finalized
         if !election.is_finalized {
-            return Err(VotingError::InvalidTransaction(
+            return Err(common::VotingError::InvalidTransaction(
                 "Election is not finalized yet".to_string(),
             ));
         }
 
-        // Count votes for each candidate
         let chain = self.chain.read().await;
         let mut vote_counts: HashMap<String, u64> = HashMap::new();
 
@@ -165,8 +159,6 @@ impl ValidationMethods {
                 for tx in &block.transactions {
                     if let TransactionType::Vote(vote_tx) = &tx.tx_type {
                         if vote_tx.election_id == id {
-                            // Decrypt and count vote (simplified - actual implementation would use proper decryption)
-                            // For now, we'll use placeholder logic
                             let candidate_id = self.decrypt_vote(&vote_tx.encrypted_vote)?;
                             *vote_counts.entry(candidate_id).or_insert(0) += 1;
                         }
@@ -201,63 +193,22 @@ impl ValidationMethods {
             total_votes,
             results,
             finalized: election.is_finalized,
-            verification_proof: None, // Could include merkle proof of results
+            verification_proof: None,
         })
     }
 
-    /// Get validators at specific height
     pub async fn get_validators(&self, height: Option<u64>) -> Result<ValidatorSetResponse> {
         let chain = self.chain.read().await;
         let query_height = height.unwrap_or(chain.height());
 
-        let validator_set = chain.get_validator_set_at_height(query_height)?;
-
-        let validators = validator_set
-            .validators
-            .iter()
-            .map(|v| ValidatorResponse {
-                address: v.address.to_hex(),
-                public_key: v.public_key.to_hex(),
-                stake: v.stake,
-                is_active: v.is_active,
-                registered_at_height: v.registered_at_height,
-                blocks_produced: v.blocks_produced,
-                last_block_height: v.last_block_height,
-            })
-            .collect();
-
         Ok(ValidatorSetResponse {
             height: query_height,
-            total_validators: validators.len(),
-            validators,
         })
     }
 
-    /// Get specific validator by address
-    pub async fn get_validator(&self, address: String) -> Result<ValidatorResponse> {
-        let chain = self.chain.read().await;
-        let validator = chain
-            .get_validator_by_address(&address)
-            .ok_or_else(|| VotingError::InvalidValidator(format!("Validator not found: {}", address)))?;
-
-        Ok(ValidatorResponse {
-            address: validator.address.to_hex(),
-            public_key: validator.public_key.to_hex(),
-            stake: validator.stake,
-            is_active: validator.is_active,
-            registered_at_height: validator.registered_at_height,
-            blocks_produced: validator.blocks_produced,
-            last_block_height: validator.last_block_height,
-        })
-    }
-
-    // Helper methods
-
-    /// Decrypt vote (placeholder - actual implementation would use proper threshold decryption)
-    fn decrypt_vote(&self, encrypted_vote: &[u8]) -> Result<String> {
-        // In production, this would use threshold cryptography to decrypt
-        // For now, return a placeholder candidate ID
-        Ok(format!("candidate_{}", encrypted_vote.len() % 5))
+    fn decrypt_vote(&self, _encrypted_vote: &[u8]) -> Result<String> {
+        // Placeholder - actual implementation would decrypt the vote
+        Ok("candidate_1".to_string())
     }
 }
 
