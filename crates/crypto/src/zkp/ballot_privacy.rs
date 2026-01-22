@@ -10,9 +10,9 @@
 /// - Ballot validity is publicly verifiable
 /// - No voter can be coerced or bribed (receipt-freeness)
 
-use super::{Commitment, ProofType, SchnorrProof, ZkProof};
+use super::{Commitment, ProofType, ZkProof}; // Removed import: SchnorrProof
 use crate::encryption::{encrypt, EncryptedData, EncryptionKey};
-use crate::hash::{hash_blake2b, hash_blake2b_multiple};
+use crate::hash::{hash_blake2b_multiple}; // Removed import: hash_blake2b
 use crate::keys::PublicKey;
 use crate::signatures::{sign, verify, Signature};
 use common::{Result, VotingError};
@@ -278,6 +278,7 @@ pub struct ProofMetadata {
 }
 
 /// Ballot verifier for checking ballot validity
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BallotVerifier {
     /// Election public key
     election_key: PublicKey,

@@ -177,7 +177,7 @@ impl VoteSubmission {
         Ok(Self {
             voter_id,
             cast_ballot,
-            submission_signature,
+            submission_signature: submission_signature.to_common(),
             submitted_at,
         })
     }
@@ -186,7 +186,7 @@ impl VoteSubmission {
         self.cast_ballot.verify(voter_public_key)?;
 
         let message = Self::compute_message(&self.voter_id, &self.cast_ballot, self.submitted_at);
-        crypto::signatures::verify(&message, &self.submission_signature, voter_public_key)?;
+        crypto::signatures::verify(&message, &crypto::signatures::Signature::from_common(&self.submission_signature), &crypto::keys::PublicKey::from_common(voter_public_key))?;
 
         Ok(())
     }

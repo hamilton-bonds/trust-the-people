@@ -35,7 +35,7 @@ pub trait RpcService: Send + Sync {
 
     /// Get block by hash
     async fn get_block(&self, hash: String) -> Result<BlockResponse, VotingError>;
-
+    
     /// Get block by height
     async fn get_block_by_height(&self, height: u64) -> Result<BlockResponse, VotingError>;
 

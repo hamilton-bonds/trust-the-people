@@ -101,6 +101,7 @@ pub struct PeerStats {
 }
 
 /// Peer connection
+#[derive(Clone)]
 pub struct Peer {
     info: Arc<RwLock<PeerInfo>>,
     stats: Arc<RwLock<PeerStats>>,

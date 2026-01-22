@@ -23,7 +23,7 @@ impl Voter {
 
         Self {
             id,
-            public_key,
+            public_key: public_key.to_common(),
             address,
             status: VoterStatus::Unregistered,
             credentials: None,
@@ -234,7 +234,7 @@ impl VoterRegistration {
             voter_id: voter.id,
             public_key: voter.public_key,
             credentials: credentials.clone(),
-            signature,
+            signature: signature.to_common(),
             timestamp,
         })
     }
@@ -252,7 +252,9 @@ impl VoterRegistration {
             &self.credentials,
             self.timestamp,
         );
-        verify(&message, &self.signature, &self.public_key)?;
+        let crypto_sig = crypto::signatures::Signature::from_common(&self.signature);
+        let crypto_pk = crypto::keys::PublicKey::from_common(&self.public_key);
+        crypto::signatures::verify(&message, &crypto_sig, &crypto_pk)?;
 
         Ok(())
     }

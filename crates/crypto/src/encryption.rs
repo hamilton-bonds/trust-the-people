@@ -5,6 +5,7 @@ use chacha20poly1305::{
 };
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
 /// Size of encryption key in bytes (256 bits for ChaCha20-Poly1305)
 pub const KEY_SIZE: usize = 32;
@@ -182,8 +183,8 @@ impl EncryptionKey {
         let argon2 = Argon2::new(argon2::Algorithm::Argon2id, Version::V0x13, params);
 
         // Convert salt to SaltString (encode as B64)
-        let salt_b64 = base64::encode_config(salt, base64::BCRYPT);
-        let salt_string = SaltString::new(&salt_b64)
+        let salt_b64 = BASE64.encode(salt);
+        let salt_string = SaltString::from_b64(&salt_b64)
             .map_err(|e| VotingError::CryptoError(format!("Invalid salt: {}", e)))?;
 
         let password_hash = argon2

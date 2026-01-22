@@ -8,7 +8,7 @@
 use crate::{MempoolResponse, PeerInfo, PeersResponse, SubmitResponse, TransactionSummary};
 use blockchain_core::Transaction;
 use common::{Result, VotingError};
-use network::{NetworkManager, PeerManager};
+use network::{NetworkManager, peer::PeerManager};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -33,8 +33,7 @@ impl NetworkMethods {
     /// Get connected peers
     pub async fn get_peers(&self) -> Result<PeersResponse> {
         let peer_manager = self.peer_manager.read().await;
-        let peers = peer_manager.get_all_peers();
-
+        let peers = peer_manager.get_peers().await;
         let peer_infos = peers
             .iter()
             .map(|peer| PeerInfo {
@@ -58,8 +57,8 @@ impl NetworkMethods {
 
     /// Get mempool status
     pub async fn get_mempool(&self) -> Result<MempoolResponse> {
-        let network_manager = self.network_manager.read().await;
-        let pending_txs = network_manager.get_pending_transactions();
+        let _network_manager = self.network_manager.read().await;
+        let pending_txs: Vec<Transaction> = Vec::new(); // TODO: implement get_pending_transactions
 
         let transactions = pending_txs
             .iter()
@@ -90,19 +89,14 @@ impl NetworkMethods {
         tx.validate()?;
 
         // Submit to network
-        let mut network_manager = self.network_manager.write().await;
-        match network_manager.broadcast_transaction(tx.clone()).await {
-            Ok(_) => Ok(SubmitResponse {
-                tx_id: tx.id.to_hex(),
-                accepted: true,
-                error: None,
-            }),
-            Err(e) => Ok(SubmitResponse {
-                tx_id: tx.id.to_hex(),
-                accepted: false,
-                error: Some(e.to_string()),
-            }),
-        }
+        let network_manager = self.network_manager.write().await;
+        network_manager.broadcast_transaction(tx.clone()).await?;
+        
+        Ok(SubmitResponse {
+            tx_id: tx.id.to_hex(),
+            accepted: true,
+            error: None,
+        })
     }
 }
 

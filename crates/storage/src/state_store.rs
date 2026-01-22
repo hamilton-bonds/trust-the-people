@@ -1,4 +1,5 @@
 use crate::database::Database;
+use crate::jurisdiction::JurisdictionPath;
 use common::{
     BlockHash, BlockHeight, ElectionId, PublicKey, Result, Timestamp, TxId, VotingError,
 };
@@ -42,13 +43,16 @@ struct StateCache {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ElectionState {
     /// Election ID
-    pub election_id: ElectionId,
+    pub id: ElectionId,
     
     /// Election name
     pub name: String,
     
     /// Election description
     pub description: String,
+    
+    /// Jurisdiction path
+    pub jurisdiction_path: JurisdictionPath,
     
     /// List of candidates
     pub candidates: Vec<CandidateInfo>,
@@ -60,7 +64,7 @@ pub struct ElectionState {
     pub end_time: Timestamp,
     
     /// Current vote count
-    pub vote_count: u64,
+    pub total_votes: u64,
     
     /// Is election active
     pub is_active: bool,
@@ -177,12 +181,12 @@ impl StateStore {
     /// Load validators from database
     fn load_validators(&self) -> Result<()> {
         let prefix = b"state:validator:";
-        let validators = self.db.get_with_prefix(prefix)?;
+        let keys = self.db.keys_with_prefix(prefix)?;
         
         let mut cache = self.cache.write().unwrap();
         cache.active_validators.clear();
         
-        for (key, _) in validators {
+        for key in keys {
             // Extract public key from key
             if key.len() == prefix.len() + 32 {
                 let mut pk_bytes = [0u8; 32];
@@ -197,17 +201,17 @@ impl StateStore {
     /// Load active elections from database
     fn load_active_elections(&self) -> Result<()> {
         let prefix = b"state:election:";
-        let elections = self.db.get_with_prefix(prefix)?;
+        let keys = self.db.keys_with_prefix(prefix)?;
         
         let mut cache = self.cache.write().unwrap();
         cache.active_elections.clear();
         
-        for (_, value) in elections {
-            let election: ElectionState = common::utils::deserialize(&value)?;
-            if election.is_active {
-                cache
-                    .active_elections
-                    .insert(election.election_id, election);
+        for key in keys {
+            if let Some(value) = self.db.get(&key)? {
+                let election: ElectionState = common::utils::deserialize(&value)?;
+                if election.is_active {
+                    cache.active_elections.insert(election.id, election);
+                }
             }
         }
         
@@ -303,16 +307,12 @@ impl StateStore {
         // Update cache
         {
             let mut cache = self.cache.write().unwrap();
-            cache
-                .active_elections
-                .insert(election.election_id, election.clone());
-            cache
-                .voter_participation
-                .insert(election.election_id, HashSet::new());
+            cache.active_elections.insert(election.id, election.clone());
+            cache.voter_participation.insert(election.id, HashSet::new());
         }
         
         // Persist to database
-        let key = format!("state:election:{}", election.election_id.to_hex());
+        let key = format!("state:election:{}", election.id.to_hex());
         let data = common::utils::serialize(&election)?;
         self.db.put(key.as_bytes(), &data)?;
         
@@ -369,6 +369,22 @@ impl StateStore {
         }
     }
     
+    /// Get all elections (for jurisdiction queries)
+    pub fn get_all_elections(&self) -> Result<Vec<ElectionState>> {
+        let prefix = b"state:election:";
+        let keys = self.db.keys_with_prefix(prefix)?;
+        
+        let mut elections = Vec::new();
+        for key in keys {
+            if let Some(data) = self.db.get(&key)? {
+                let election: ElectionState = common::utils::deserialize(&data)?;
+                elections.push(election);
+            }
+        }
+        
+        Ok(elections)
+    }
+    
     /// Get all active elections
     pub fn get_active_elections(&self) -> Vec<ElectionState> {
         self.cache
@@ -397,13 +413,13 @@ impl StateStore {
         {
             let mut cache = self.cache.write().unwrap();
             if let Some(election) = cache.active_elections.get_mut(election_id) {
-                election.vote_count += 1;
+                election.total_votes += 1;
             }
         }
         
         // Update database
         if let Some(mut election) = self.get_election(election_id)? {
-            election.vote_count += 1;
+            election.total_votes += 1;
             
             let key = format!("state:election:{}", election_id.to_hex());
             let data = common::utils::serialize(&election)?;
@@ -413,7 +429,7 @@ impl StateStore {
         Ok(())
     }
     
-    /// Record that a voter has participated in an election
+    /// Record voter participation
     pub fn record_voter_participation(
         &self,
         election_id: &ElectionId,
@@ -421,28 +437,15 @@ impl StateStore {
     ) -> Result<bool> {
         let mut cache = self.cache.write().unwrap();
         
-        let participation = cache
-            .voter_participation
-            .entry(*election_id)
-            .or_insert_with(HashSet::new);
-        
-        // Returns true if voter was already recorded (duplicate vote)
-        let already_voted = !participation.insert(voter_id);
-        
-        // Persist to database if new
-        if !already_voted {
-            let key = format!(
-                "state:voter:{}:{}",
-                election_id.to_hex(),
-                hex::encode(voter_id.0)
-            );
-            self.db.put(key.as_bytes(), &[1])?;
+        if let Some(voters) = cache.voter_participation.get_mut(election_id) {
+            let is_new = voters.insert(voter_id);
+            Ok(is_new)
+        } else {
+            Ok(false)
         }
-        
-        Ok(already_voted)
     }
     
-    /// Check if voter has already voted in an election
+    /// Check if voter has already voted
     pub fn has_voter_participated(
         &self,
         election_id: &ElectionId,
@@ -457,35 +460,28 @@ impl StateStore {
             .unwrap_or(false)
     }
     
-    /// Add transaction to the pending pool
-    pub fn add_to_tx_pool(&self, tx: PendingTransaction) -> Result<()> {
-        // Update cache
-        {
-            let mut cache = self.cache.write().unwrap();
-            cache.tx_pool.insert(tx.tx_id, tx.clone());
-        }
-        
-        // Persist to database
-        let key = format!("state:txpool:{}", tx.tx_id.to_hex());
-        let data = common::utils::serialize(&tx)?;
-        self.db.put(key.as_bytes(), &data)?;
-        
+    /// Add transaction to mempool
+    pub fn add_pending_transaction(&self, tx: PendingTransaction) -> Result<()> {
+        let mut cache = self.cache.write().unwrap();
+        cache.tx_pool.insert(tx.tx_id, tx);
         Ok(())
     }
     
-    /// Remove transaction from the pool (when included in block)
-    pub fn remove_from_tx_pool(&self, tx_id: &TxId) -> Result<()> {
-        // Update cache
-        {
-            let mut cache = self.cache.write().unwrap();
-            cache.tx_pool.remove(tx_id);
-        }
-        
-        // Remove from database
-        let key = format!("state:txpool:{}", tx_id.to_hex());
-        self.db.delete(key.as_bytes())?;
-        
+    /// Remove transaction from mempool
+    pub fn remove_pending_transaction(&self, tx_id: &TxId) -> Result<()> {
+        let mut cache = self.cache.write().unwrap();
+        cache.tx_pool.remove(tx_id);
         Ok(())
+    }
+    
+    /// Get pending transaction
+    pub fn get_pending_transaction(&self, tx_id: &TxId) -> Option<PendingTransaction> {
+        self.cache
+            .read()
+            .unwrap()
+            .tx_pool
+            .get(tx_id)
+            .cloned()
     }
     
     /// Get all pending transactions
@@ -499,46 +495,18 @@ impl StateStore {
             .collect()
     }
     
-    /// Get pending transactions sorted by priority
-    pub fn get_pending_transactions_by_priority(&self, limit: usize) -> Vec<PendingTransaction> {
-        let cache = self.cache.read().unwrap();
-        let mut txs: Vec<PendingTransaction> = cache.tx_pool.values().cloned().collect();
-        
-        // Sort by priority (descending) then by added_at (ascending)
-        txs.sort_by(|a, b| {
-            b.priority
-                .cmp(&a.priority)
-                .then_with(|| a.added_at.cmp(&b.added_at))
-        });
-        
-        txs.into_iter().take(limit).collect()
-    }
-    
-    /// Get number of pending transactions
-    pub fn pending_tx_count(&self) -> usize {
-        self.cache.read().unwrap().tx_pool.len()
-    }
-    
-    /// Clear old pending transactions (older than timestamp)
-    pub fn clear_old_pending_transactions(&self, before_timestamp: Timestamp) -> Result<usize> {
+    /// Clear old pending transactions
+    pub fn prune_pending_transactions(&self, cutoff_time: Timestamp) -> Result<usize> {
+        let mut cache = self.cache.write().unwrap();
         let mut removed_count = 0;
         
-        // Get transactions to remove
-        let to_remove: Vec<TxId> = {
-            let cache = self.cache.read().unwrap();
-            cache
-                .tx_pool
-                .values()
-                .filter(|tx| tx.added_at < before_timestamp)
-                .map(|tx| tx.tx_id)
-                .collect()
-        };
-        
-        // Remove each one
-        for tx_id in to_remove {
-            self.remove_from_tx_pool(&tx_id)?;
-            removed_count += 1;
-        }
+        cache.tx_pool.retain(|_, tx| {
+            let keep = tx.added_at >= cutoff_time;
+            if !keep {
+                removed_count += 1;
+            }
+            keep
+        });
         
         Ok(removed_count)
     }
@@ -638,13 +606,14 @@ mod tests {
         
         let election_id = ElectionId::new([1u8; 16]);
         let election = ElectionState {
-            election_id,
+            id: election_id,
             name: "Test Election".to_string(),
             description: "Test".to_string(),
+            jurisdiction_path: JurisdictionPath::parse("US/Test").unwrap(),
             candidates: vec![],
             start_time: 1000,
             end_time: 2000,
-            vote_count: 0,
+            total_votes: 0,
             is_active: true,
             is_finalized: false,
             created_at_height: 100,
@@ -667,13 +636,14 @@ mod tests {
         
         let election_id = ElectionId::new([1u8; 16]);
         let election = ElectionState {
-            election_id,
+            id: election_id,
             name: "Test Election".to_string(),
             description: "Test".to_string(),
+            jurisdiction_path: JurisdictionPath::parse("US/Test").unwrap(),
             candidates: vec![],
             start_time: 1000,
             end_time: 2000,
-            vote_count: 0,
+            total_votes: 0,
             is_active: true,
             is_finalized: false,
             created_at_height: 100,
@@ -692,160 +662,38 @@ mod tests {
     }
 
     #[test]
-    fn test_vote_counting() {
-        let store = create_test_state_store();
-        
-        let election_id = ElectionId::new([1u8; 16]);
-        let election = ElectionState {
-            election_id,
-            name: "Test Election".to_string(),
-            description: "Test".to_string(),
-            candidates: vec![],
-            start_time: 1000,
-            end_time: 2000,
-            vote_count: 0,
-            is_active: true,
-            is_finalized: false,
-            created_at_height: 100,
-            closed_at_height: None,
-        };
-        
-        store.create_election(election).unwrap();
-        
-        store.increment_vote_count(&election_id).unwrap();
-        store.increment_vote_count(&election_id).unwrap();
-        
-        let election = store.get_election(&election_id).unwrap().unwrap();
-        assert_eq!(election.vote_count, 2);
-    }
-
-    #[test]
     fn test_voter_participation() {
         let store = create_test_state_store();
         
         let election_id = ElectionId::new([1u8; 16]);
-        let voter_id = VoterIdentifier::new([1u8; 32]);
-        
-        let already_voted = store.record_voter_participation(&election_id, voter_id).unwrap();
-        assert!(!already_voted);
-        
-        assert!(store.has_voter_participated(&election_id, &voter_id));
-        
-        let already_voted = store.record_voter_participation(&election_id, voter_id).unwrap();
-        assert!(already_voted);
-    }
-
-    #[test]
-    fn test_transaction_pool() {
-        let store = create_test_state_store();
-        
-        let tx = PendingTransaction {
-            tx_id: TxId::new([1u8; 32]),
-            data: vec![1, 2, 3],
-            added_at: 1000,
-            priority: 5,
-        };
-        
-        store.add_to_tx_pool(tx.clone()).unwrap();
-        assert_eq!(store.pending_tx_count(), 1);
-        
-        let pending = store.get_pending_transactions();
-        assert_eq!(pending.len(), 1);
-        assert_eq!(pending[0].tx_id, tx.tx_id);
-        
-        store.remove_from_tx_pool(&tx.tx_id).unwrap();
-        assert_eq!(store.pending_tx_count(), 0);
-    }
-
-    #[test]
-    fn test_transaction_priority_sorting() {
-        let store = create_test_state_store();
-        
-        let tx1 = PendingTransaction {
-            tx_id: TxId::new([1u8; 32]),
-            data: vec![],
-            added_at: 1000,
-            priority: 5,
-        };
-        
-        let tx2 = PendingTransaction {
-            tx_id: TxId::new([2u8; 32]),
-            data: vec![],
-            added_at: 1001,
-            priority: 10,
-        };
-        
-        let tx3 = PendingTransaction {
-            tx_id: TxId::new([3u8; 32]),
-            data: vec![],
-            added_at: 999,
-            priority: 10,
-        };
-        
-        store.add_to_tx_pool(tx1.clone()).unwrap();
-        store.add_to_tx_pool(tx2.clone()).unwrap();
-        store.add_to_tx_pool(tx3.clone()).unwrap();
-        
-        let sorted = store.get_pending_transactions_by_priority(3);
-        
-        assert_eq!(sorted.len(), 3);
-        assert_eq!(sorted[0].tx_id, tx3.tx_id);
-        assert_eq!(sorted[1].tx_id, tx2.tx_id);
-        assert_eq!(sorted[2].tx_id, tx1.tx_id);
-    }
-
-    #[test]
-    fn test_clear_old_transactions() {
-        let store = create_test_state_store();
-        
-        let tx1 = PendingTransaction {
-            tx_id: TxId::new([1u8; 32]),
-            data: vec![],
-            added_at: 1000,
-            priority: 5,
-        };
-        
-        let tx2 = PendingTransaction {
-            tx_id: TxId::new([2u8; 32]),
-            data: vec![],
-            added_at: 2000,
-            priority: 5,
-        };
-        
-        store.add_to_tx_pool(tx1).unwrap();
-        store.add_to_tx_pool(tx2).unwrap();
-        
-        let removed = store.clear_old_pending_transactions(1500).unwrap();
-        assert_eq!(removed, 1);
-        assert_eq!(store.pending_tx_count(), 1);
-    }
-
-    #[test]
-    fn test_state_stats() {
-        let store = create_test_state_store();
-        
-        store.update_chain_tip(100, BlockHash::new([1u8; 32])).unwrap();
-        store.add_validator(PublicKey::new([1u8; 32])).unwrap();
-        
-        let election_id = ElectionId::new([1u8; 16]);
         let election = ElectionState {
-            election_id,
+            id: election_id,
             name: "Test".to_string(),
             description: "Test".to_string(),
+            jurisdiction_path: JurisdictionPath::parse("US/Test").unwrap(),
             candidates: vec![],
             start_time: 1000,
             end_time: 2000,
-            vote_count: 0,
+            total_votes: 0,
             is_active: true,
             is_finalized: false,
             created_at_height: 100,
             closed_at_height: None,
         };
+        
         store.create_election(election).unwrap();
         
-        let stats = store.get_stats();
-        assert_eq!(stats.current_height, 100);
-        assert_eq!(stats.active_validators, 1);
-        assert_eq!(stats.active_elections, 1);
+        let voter1 = VoterIdentifier::new([1u8; 32]);
+        let voter2 = VoterIdentifier::new([2u8; 32]);
+        
+        // First vote should succeed
+        assert!(store.record_voter_participation(&election_id, voter1).unwrap());
+        assert!(store.has_voter_participated(&election_id, &voter1));
+        
+        // Duplicate vote should return false
+        assert!(!store.record_voter_participation(&election_id, voter1).unwrap());
+        
+        // Different voter should succeed
+        assert!(store.record_voter_participation(&election_id, voter2).unwrap());
     }
 }

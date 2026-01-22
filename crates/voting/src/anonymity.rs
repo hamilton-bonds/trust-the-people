@@ -4,7 +4,8 @@ use common::{ElectionId, PublicKey, Result, Signature, Timestamp, VotingError};
 use crypto::encryption::{encrypt, EncryptedData, EncryptionKey};
 use crypto::hash::{hash_blake2b, hash_blake2b_multiple};
 use crypto::keys::KeyPair;
-use crypto::signatures::{sign, verify};
+use crypto::signatures::{sign, verify as crypto_verify};
+use crypto::verify;
 use crypto::zkp::ballot_privacy::PrivateBallot;
 use crypto::zkp::Commitment;
 use serde::{Deserialize, Serialize};
@@ -360,7 +361,7 @@ impl BlindSignature {
     }
 
     pub fn sign(&mut self, keypair: &KeyPair) -> Result<()> {
-        self.signature = sign(&self.blinded_message, keypair)?;
+        self.signature = sign(&self.blinded_message, keypair)?.to_common();
         Ok(())
     }
 
@@ -414,7 +415,7 @@ impl RingSignature {
 
         Ok(Self {
             ring_members,
-            signature,
+            signature: signature.to_common(),
             key_image,
         })
     }
@@ -425,7 +426,7 @@ impl RingSignature {
         }
 
         for public_key in &self.ring_members {
-            if verify(message, &self.signature, public_key).is_ok() {
+            if verify(message, &crypto::signatures::Signature::from_common(&self.signature), &crypto::keys::PublicKey::from_common(public_key)).is_ok() {
                 return Ok(true);
             }
         }

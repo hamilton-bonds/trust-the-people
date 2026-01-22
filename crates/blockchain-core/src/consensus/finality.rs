@@ -74,7 +74,7 @@ impl FinalityTracker {
     /// Check and update finality for a block
     pub fn check_finality(&mut self, block: &Block, total_validators: usize) -> FinalityStatus {
         let block_hash = block.hash();
-        let signature_count = block.signature_count();
+        let _signature_count = block.signature_count(); // Adding _ before variable to bypass unused warnings
         let required_signatures = self.calculate_required_signatures(total_validators);
         
         // Get or create finality info

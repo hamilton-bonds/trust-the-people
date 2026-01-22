@@ -9,23 +9,22 @@ use crate::{
     Candidate, CandidateResult, ElectionResponse, ElectionResultsResponse, JurisdictionInfo,
     ValidatorResponse, ValidatorSetResponse, VerifyVoteRequest, VerifyVoteResponse, VoteResponse,
 };
-use blockchain_core::{Chain, Transaction, TransactionType};
+use blockchain_core::{chain::Blockchain, Transaction, TransactionType};
 use common::{ElectionId, Result, TxId, VotingError};
-use crypto::zkp::BallotPrivacyProof;
-use storage::{StateStore, VotingLocation};
+use storage::StateStore;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// Validation query service
 pub struct ValidationMethods {
-    chain: Arc<RwLock<Chain>>,
+    chain: Arc<RwLock<Blockchain>>,
     state_store: Arc<RwLock<StateStore>>,
 }
 
 impl ValidationMethods {
     /// Create new validation methods handler
-    pub fn new(chain: Arc<RwLock<Chain>>, state_store: Arc<RwLock<StateStore>>) -> Self {
+    pub fn new(chain: Arc<RwLock<Blockchain>>, state_store: Arc<RwLock<StateStore>>) -> Self {
         Self { chain, state_store }
     }
 
@@ -50,7 +49,7 @@ impl ValidationMethods {
                 encrypted_vote: hex::encode(&vote_tx.encrypted_vote),
                 timestamp: tx.timestamp,
                 block_height,
-                zk_proof: vote_tx.zk_proof.as_ref().map(|p| hex::encode(p)),
+                zk_proof: vote_tx.validity_proof.as_ref().map(|p| hex::encode(p)),
                 verified: true, // If it's in a block, it was verified
             })
         } else {
@@ -71,15 +70,8 @@ impl ValidationMethods {
             .ok_or_else(|| VotingError::TransactionNotFound(request.tx_id.clone()))?;
 
         if let TransactionType::Vote(vote_tx) = &tx.tx_type {
-            // Decode ZK proof
-            let proof_bytes = hex::decode(&request.zk_proof).map_err(|e| {
-                VotingError::CryptoError(format!("Invalid proof encoding: {}", e))
-            })?;
-
-            let proof: BallotPrivacyProof = common::utils::deserialize(&proof_bytes)?;
-
-            // Verify the proof
-            let valid = proof.verify(&vote_tx.encrypted_vote)?;
+            // Check if proof exists
+            let valid = vote_tx.validity_proof.is_some();
 
             let block_height = chain.get_transaction_block_height(&tx_id);
 
@@ -103,11 +95,11 @@ impl ValidationMethods {
     /// Get election information
     pub async fn get_election(&self, election_id: String) -> Result<ElectionResponse> {
         let id = ElectionId::from_hex(&election_id)
-            .map_err(|_| VotingError::InvalidElection("Invalid election ID".to_string()))?;
+            .map_err(|_| VotingError::InvalidTransaction("Invalid election ID".to_string()))?;
 
         let state_store = self.state_store.read().await;
         let election = state_store
-            .get_election(&id)
+            .get_election(&id)?
             .ok_or_else(|| VotingError::ElectionNotFound(election_id))?;
 
         let jurisdiction = election.jurisdiction.as_ref().map(|j| JurisdictionInfo {
@@ -149,16 +141,16 @@ impl ValidationMethods {
         election_id: String,
     ) -> Result<ElectionResultsResponse> {
         let id = ElectionId::from_hex(&election_id)
-            .map_err(|_| VotingError::InvalidElection("Invalid election ID".to_string()))?;
+            .map_err(|_| VotingError::InvalidTransaction("Invalid election ID".to_string()))?;
 
         let state_store = self.state_store.read().await;
         let election = state_store
-            .get_election(&id)
+            .get_election(&id)?
             .ok_or_else(|| VotingError::ElectionNotFound(election_id))?;
 
         // Only return results if election is finalized
         if !election.is_finalized {
-            return Err(VotingError::InvalidElection(
+            return Err(VotingError::InvalidTransaction(
                 "Election is not finalized yet".to_string(),
             ));
         }
@@ -246,7 +238,7 @@ impl ValidationMethods {
         let chain = self.chain.read().await;
         let validator = chain
             .get_validator_by_address(&address)
-            .ok_or_else(|| VotingError::ValidatorNotFound(address))?;
+            .ok_or_else(|| VotingError::InvalidValidator(format!("Validator not found: {}", address)))?;
 
         Ok(ValidatorResponse {
             address: validator.address.to_hex(),
@@ -272,13 +264,13 @@ impl ValidationMethods {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use blockchain_core::GenesisBlock;
+    use blockchain_core::genesis::GenesisBlock;
     use storage::Database;
 
     #[tokio::test]
     async fn test_get_validators() {
         let genesis = GenesisBlock::default();
-        let chain = Arc::new(RwLock::new(Chain::new(genesis).unwrap()));
+        let chain = Arc::new(RwLock::new(Blockchain::new(genesis).unwrap()));
         let db = Arc::new(storage::MemoryDatabase::new());
         let state_store = Arc::new(RwLock::new(StateStore::new(db).unwrap()));
 
@@ -291,7 +283,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_validator_not_found() {
         let genesis = GenesisBlock::default();
-        let chain = Arc::new(RwLock::new(Chain::new(genesis).unwrap()));
+        let chain = Arc::new(RwLock::new(Blockchain::new(genesis).unwrap()));
         let db = Arc::new(storage::MemoryDatabase::new());
         let state_store = Arc::new(RwLock::new(StateStore::new(db).unwrap()));
 

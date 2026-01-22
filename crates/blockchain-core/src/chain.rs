@@ -1,4 +1,4 @@
-use common::{BlockHash, BlockHeight, PublicKey, Result, Timestamp, TxId, VotingError};
+use common::{Address, BlockHash, BlockHeight, PublicKey, Result, Timestamp, TxId, VotingError};
 use crate::block::Block;
 use crate::transaction::Transaction;
 use crate::genesis::GenesisBlock;
@@ -84,6 +84,11 @@ impl Blockchain {
             .get(tx_id)
             .and_then(|&height| self.get_block_by_height(height))
             .and_then(|block| block.get_transaction(tx_id))
+    }
+    
+    /// Get the block height for a transaction
+    pub fn get_transaction_block_height(&self, tx_id: &TxId) -> Option<BlockHeight> {
+        self.tx_to_block.get(tx_id).copied()
     }
     
     /// Check if transaction exists in blockchain
@@ -193,6 +198,38 @@ impl Blockchain {
         self.tx_to_block.len()
     }
     
+    /// Get validator count (placeholder - needs validator tracking)
+    pub fn validator_count(&self) -> usize {
+        // TODO: Implement validator tracking in consensus module
+        0
+    }
+
+    /// Get active validator count (placeholder)
+    pub fn active_validator_count(&self) -> usize {
+        // TODO: Implement active validator tracking
+        0
+    }
+
+    /// Get active election count (placeholder)
+    pub fn active_election_count(&self) -> usize {
+        // TODO: Implement election tracking
+        0
+    }
+
+    /// Get validator set at specific height (placeholder)
+    pub fn get_validator_set_at_height(&self, _height: BlockHeight) -> Result<ValidatorSet> {
+        // TODO: Implement validator set history tracking
+        Ok(ValidatorSet {
+            validators: Vec::new(),
+        })
+    }
+
+    /// Get validator by address (placeholder)
+    pub fn get_validator_by_address(&self, _address: &str) -> Option<ValidatorInfo> {
+        // TODO: Implement validator lookup by address
+        None
+    }
+    
     /// Get blockchain statistics
     pub fn get_stats(&self) -> BlockchainStats {
         let total_blocks = self.blocks.len() as u64;
@@ -239,6 +276,24 @@ impl Blockchain {
     }
 }
 
+/// Validator set information
+#[derive(Debug, Clone)]
+pub struct ValidatorSet {
+    pub validators: Vec<ValidatorInfo>,
+}
+
+/// Validator information
+#[derive(Debug, Clone)]
+pub struct ValidatorInfo {
+    pub address: Address,
+    pub public_key: PublicKey,
+    pub stake: u64,
+    pub is_active: bool,
+    pub registered_at_height: BlockHeight,
+    pub blocks_produced: u64,
+    pub last_block_height: Option<BlockHeight>,
+}
+
 /// Blockchain statistics
 #[derive(Debug, Clone)]
 pub struct BlockchainStats {
@@ -268,6 +323,7 @@ mod tests {
         let vote = VoteTransaction {
             election_id: ElectionId::new([1u8; 16]),
             encrypted_vote: vec![1, 2, 3, 4],
+            validity_proof: None,
             voter_signature: Signature::new([0u8; 64]),
         };
         Transaction::new(TransactionType::Vote(vote))
@@ -339,6 +395,7 @@ mod tests {
         
         assert!(blockchain.contains_transaction(&tx_id));
         assert!(blockchain.get_transaction(&tx_id).is_some());
+        assert_eq!(blockchain.get_transaction_block_height(&tx_id), Some(1));
     }
 
     #[test]

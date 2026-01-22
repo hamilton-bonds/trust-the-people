@@ -83,34 +83,41 @@ impl Transport {
     }
     
     async fn accept_loop(&self, mut shutdown_rx: mpsc::Receiver<()>) {
-        let listener = {
-            let guard = self.listener.read().await;
-            match &*guard {
-                Some(l) => l.try_clone().ok(),
-                None => None,
-            }
-        };
-        
-        let Some(listener) = listener else {
-            return;
-        };
-        
         loop {
-            tokio::select! {
-                _ = shutdown_rx.recv() => {
-                    break;
-                }
-                result = listener.accept() => {
-                    match result {
-                        Ok((stream, addr)) => {
-                            if let Err(e) = self.handle_inbound_connection(stream, addr).await {
-                                tracing::warn!("Failed to handle inbound connection from {}: {}", addr, e);
-                            }
-                        }
-                        Err(e) => {
-                            tracing::error!("Accept error: {}", e);
-                        }
+            // Check if we should shutdown first
+            if shutdown_rx.try_recv().is_ok() {
+                break;
+            }
+            
+            // Get a reference to the listener
+            let listener_guard = self.listener.read().await;
+            
+            let Some(ref listener) = *listener_guard else {
+                drop(listener_guard);
+                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                continue;
+            };
+            
+            // Accept with timeout to periodically check shutdown
+            let accept_result = tokio::time::timeout(
+                tokio::time::Duration::from_millis(100),
+                listener.accept()
+            ).await;
+            
+            drop(listener_guard);
+            
+            match accept_result {
+                Ok(Ok((stream, addr))) => {
+                    if let Err(e) = self.handle_inbound_connection(stream, addr).await {
+                        tracing::warn!("Failed to handle inbound connection from {}: {}", addr, e);
                     }
+                }
+                Ok(Err(e)) => {
+                    tracing::error!("Accept error: {}", e);
+                }
+                Err(_) => {
+                    // Timeout - continue loop to check shutdown
+                    continue;
                 }
             }
         }
@@ -297,10 +304,12 @@ impl Connection {
     
     fn encode_message(message: &Message) -> Result<Vec<u8>> {
         common::utils::serialize(message)
+            .map_err(|e| VotingError::SerializationError(format!("{}", e)))
     }
     
     fn decode_message(data: &[u8]) -> Result<Message> {
         common::utils::deserialize(data)
+            .map_err(|e| VotingError::DeserializationError(format!("{}", e)))
     }
     
     async fn close(&self) -> Result<()> {

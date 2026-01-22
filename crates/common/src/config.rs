@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::time::Duration;
 
 /// Main configuration for the voting node
 #[derive(Debug, Clone, Serialize, Deserialize)]

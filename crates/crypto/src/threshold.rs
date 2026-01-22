@@ -1,5 +1,6 @@
 use crate::keys::{KeyPair, PrivateKey, PublicKey};
 use crate::signatures::Signature;
+use crate::signatures::verify;
 use common::{Result, VotingError};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -127,7 +128,7 @@ impl PartialSignature {
 
     /// Verify this partial signature
     pub fn verify(&self, message: &[u8]) -> Result<()> {
-        self.signature.verify(message, &self.signer)
+        verify(message, &self.signature, &self.signer)
     }
 }
 
@@ -307,7 +308,7 @@ impl ThresholdAggregator {
         }
 
         // Verify signature
-        signature.verify(&self.message_hash, &signer)?;
+        verify(&self.message_hash, &signature, &signer)?;
 
         // Store signature
         let partial_sig = PartialSignature::new(signer, signature, participant_index);

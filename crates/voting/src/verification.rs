@@ -29,7 +29,7 @@ impl VoteVerifier {
             .map(|c| c.id.clone())
             .collect();
 
-        BallotVerifier::new(election.authority_key, valid_candidates, election.id.0)
+        BallotVerifier::new(crypto::keys::PublicKey::from_common(&election.authority_key), valid_candidates, election.id.0)
     }
 
     pub fn verify_submission(
@@ -50,7 +50,7 @@ impl VoteVerifier {
         }
 
         if let Some(verifier) = &self.ballot_verifier {
-            if let Err(e) = verifier.verify_ballot(&submission.cast_ballot.to_private_ballot(&crypto::keys::KeyPair::generate())?, voter_public_key) {
+            if let Err(e) = verifier.verify_ballot(&submission.cast_ballot.to_private_ballot(&crypto::keys::KeyPair::generate())?, &crypto::keys::PublicKey::from_common(voter_public_key)) {
                 result.add_error(format!("Ballot verification failed: {}", e));
                 return Ok(result);
             }

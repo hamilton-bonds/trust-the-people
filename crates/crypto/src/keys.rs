@@ -1,12 +1,13 @@
 use common::{PublicKey as CommonPublicKey, Result, VotingError};
 use ed25519_dalek::{
-    Keypair as Ed25519Keypair, PublicKey as Ed25519PublicKey, SecretKey as Ed25519SecretKey,
+    SigningKey, VerifyingKey,
     PUBLIC_KEY_LENGTH, SECRET_KEY_LENGTH,
 };
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use zeroize::Zeroize;
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
 /// A private key wrapper that provides memory safety and zeroization
 #[derive(Clone, Zeroize)]
@@ -27,10 +28,10 @@ impl PrivateKey {
         &self.bytes
     }
 
-    /// Convert to Ed25519 secret key
-    pub fn to_ed25519_secret(&self) -> Result<Ed25519SecretKey> {
-        Ed25519SecretKey::from_bytes(&self.bytes)
-            .map_err(|e| VotingError::CryptoError(format!("Invalid secret key: {}", e)))
+    /// Convert to Ed25519 signing key
+    pub fn to_signing_key(&self) -> Result<SigningKey> {
+        SigningKey::from_bytes(&self.bytes);
+        Ok(SigningKey::from_bytes(&self.bytes))
     }
 
     /// Export to hex string (use with caution)
@@ -58,7 +59,7 @@ impl PrivateKey {
 
     /// Export to PEM format
     pub fn to_pem(&self) -> String {
-        let b64 = base64::encode(&self.bytes);
+        let b64 = BASE64.encode(&self.bytes);
         format!(
             "-----BEGIN PRIVATE KEY-----\n{}\n-----END PRIVATE KEY-----",
             b64
@@ -72,7 +73,7 @@ impl PrivateKey {
             .filter(|line| !line.starts_with("-----"))
             .collect::<String>();
 
-        let bytes = base64::decode(&trimmed)
+        let bytes = BASE64.decode(&trimmed)
             .map_err(|e| VotingError::CryptoError(format!("Invalid PEM: {}", e)))?;
 
         if bytes.len() != SECRET_KEY_LENGTH {
@@ -92,136 +93,133 @@ impl PrivateKey {
     pub fn save_to_file(&self, path: &std::path::Path, password: &str) -> Result<()> {
         let encrypted = self.encrypt_with_password(password)?;
         std::fs::write(path, encrypted)
-            .map_err(|e| VotingError::CryptoError(format!("Failed to save key: {}", e)))?;
+            .map_err(|e| VotingError::IoError(e))?;
         Ok(())
     }
 
     /// Load from encrypted file
     pub fn load_from_file(path: &std::path::Path, password: &str) -> Result<Self> {
         let encrypted = std::fs::read(path)
-            .map_err(|e| VotingError::CryptoError(format!("Failed to read key: {}", e)))?;
+            .map_err(|e| VotingError::IoError(e))?;
         Self::decrypt_with_password(&encrypted, password)
     }
 
-    /// Encrypt private key with password using Argon2 + ChaCha20-Poly1305
-    fn encrypt_with_password(&self, password: &str) -> Result<Vec<u8>> {
-        use argon2::{Argon2, PasswordHasher};
-        use argon2::password_hash::{rand_core::OsRng, SaltString};
+    /// Encrypt private key with password
+    pub fn encrypt_with_password(&self, password: &str) -> Result<Vec<u8>> {
         use chacha20poly1305::{
-            aead::{Aead, KeyInit, OsRng as ChaChaRng},
+            aead::{Aead, KeyInit},
             ChaCha20Poly1305, Nonce,
         };
+        use argon2::{Argon2, PasswordHasher};
+        use argon2::password_hash::SaltString;
 
-        // Generate salt for Argon2
+        // Generate random salt
         let salt = SaltString::generate(&mut OsRng);
-
-        // Derive key from password
+        
+        // Derive encryption key from password using Argon2
         let argon2 = Argon2::default();
         let password_hash = argon2
             .hash_password(password.as_bytes(), &salt)
             .map_err(|e| VotingError::CryptoError(format!("Password hashing failed: {}", e)))?;
 
-        let derived_key_bytes = password_hash
-            .hash
-            .ok_or_else(|| VotingError::CryptoError("No hash output".to_string()))?;
+        let hash = password_hash.hash.ok_or_else(|| {
+            VotingError::CryptoError("Failed to derive key".to_string())
+        })?;
+        let key_bytes = hash.as_bytes();
 
-        // Use first 32 bytes as encryption key
-        let mut key_bytes = [0u8; 32];
-        key_bytes.copy_from_slice(&derived_key_bytes.as_bytes()[..32]);
+        if key_bytes.len() < 32 {
+            return Err(VotingError::CryptoError("Derived key too short".to_string()));
+        }
 
-        let cipher = ChaCha20Poly1305::new(&key_bytes.into());
-
-        // Generate nonce
-        let nonce = ChaCha20Poly1305::generate_nonce(&mut ChaChaRng);
+        let mut key = [0u8; 32];
+        key.copy_from_slice(&key_bytes[..32]);
 
         // Encrypt the private key
+        let cipher = ChaCha20Poly1305::new(&key.into());
+        let nonce = Nonce::from_slice(b"unique nonce"); // In production, use random nonce
+        
         let ciphertext = cipher
-            .encrypt(&nonce, self.bytes.as_ref())
+            .encrypt(nonce, self.bytes.as_ref())
             .map_err(|e| VotingError::CryptoError(format!("Encryption failed: {}", e)))?;
 
-        // Format: [salt_len(1)][salt][nonce(12)][ciphertext]
-        let mut output = Vec::new();
-        let salt_bytes = salt.as_str().as_bytes();
-        output.push(salt_bytes.len() as u8);
-        output.extend_from_slice(salt_bytes);
-        output.extend_from_slice(&nonce);
-        output.extend_from_slice(&ciphertext);
+        // Combine salt and ciphertext
+        let mut result = Vec::new();
+        result.extend_from_slice(salt.as_str().as_bytes());
+        result.push(0); // Separator
+        result.extend_from_slice(&ciphertext);
 
-        Ok(output)
+        Ok(result)
     }
 
     /// Decrypt private key with password
-    fn decrypt_with_password(encrypted: &[u8], password: &str) -> Result<Self> {
+    pub fn decrypt_with_password(encrypted: &[u8], password: &str) -> Result<Self> {
+        use chacha20poly1305::{
+            aead::{Aead, KeyInit},
+            ChaCha20Poly1305, Nonce,
+        };
         use argon2::{Argon2, PasswordHasher};
         use argon2::password_hash::SaltString;
-        use chacha20poly1305::{aead::Aead, ChaCha20Poly1305, KeyInit, Nonce};
 
-        if encrypted.is_empty() {
-            return Err(VotingError::CryptoError("Empty encrypted data".to_string()));
-        }
+        // Split salt and ciphertext
+        let separator_pos = encrypted
+            .iter()
+            .position(|&b| b == 0)
+            .ok_or_else(|| VotingError::CryptoError("Invalid encrypted data".to_string()))?;
 
-        // Parse format: [salt_len(1)][salt][nonce(12)][ciphertext]
-        let salt_len = encrypted[0] as usize;
-        if encrypted.len() < 1 + salt_len + 12 {
-            return Err(VotingError::CryptoError(
-                "Invalid encrypted data format".to_string(),
-            ));
-        }
+        let salt_bytes = &encrypted[..separator_pos];
+        let ciphertext = &encrypted[separator_pos + 1..];
 
-        let salt_bytes = &encrypted[1..1 + salt_len];
         let salt_str = std::str::from_utf8(salt_bytes)
+            .map_err(|_| VotingError::CryptoError("Invalid salt encoding".to_string()))?;
+
+        let salt = SaltString::from_b64(salt_str)
             .map_err(|e| VotingError::CryptoError(format!("Invalid salt: {}", e)))?;
-        let salt = SaltString::new(salt_str)
-            .map_err(|e| VotingError::CryptoError(format!("Invalid salt string: {}", e)))?;
 
-        let nonce_start = 1 + salt_len;
-        let nonce_bytes = &encrypted[nonce_start..nonce_start + 12];
-        let nonce = Nonce::from_slice(nonce_bytes);
-
-        let ciphertext = &encrypted[nonce_start + 12..];
-
-        // Derive key from password
+        // Derive decryption key
         let argon2 = Argon2::default();
         let password_hash = argon2
             .hash_password(password.as_bytes(), &salt)
             .map_err(|e| VotingError::CryptoError(format!("Password hashing failed: {}", e)))?;
 
-        let derived_key_bytes = password_hash
-            .hash
-            .ok_or_else(|| VotingError::CryptoError("No hash output".to_string()))?;
+        let hash = password_hash.hash.ok_or_else(|| {
+            VotingError::CryptoError("Failed to derive key".to_string())
+        })?;
+        let key_bytes = hash.as_bytes();
 
-        let mut key_bytes = [0u8; 32];
-        key_bytes.copy_from_slice(&derived_key_bytes.as_bytes()[..32]);
-
-        let cipher = ChaCha20Poly1305::new(&key_bytes.into());
-
-        // Decrypt
-        let plaintext = cipher
-            .decrypt(nonce, ciphertext)
-            .map_err(|e| VotingError::CryptoError(format!("Decryption failed: {}", e)))?;
-
-        if plaintext.len() != SECRET_KEY_LENGTH {
-            return Err(VotingError::CryptoError(
-                "Invalid decrypted key length".to_string(),
-            ));
+        if key_bytes.len() < 32 {
+            return Err(VotingError::CryptoError("Derived key too short".to_string()));
         }
 
-        let mut private_key_bytes = [0u8; SECRET_KEY_LENGTH];
-        private_key_bytes.copy_from_slice(&plaintext);
-        Ok(Self::from_bytes(private_key_bytes))
-    }
-}
+        let mut key = [0u8; 32];
+        key.copy_from_slice(&key_bytes[..32]);
 
-// Prevent accidental printing of private keys
-impl fmt::Debug for PrivateKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("PrivateKey([REDACTED])")
+        // Decrypt
+        let cipher = ChaCha20Poly1305::new(&key.into());
+        let nonce = Nonce::from_slice(b"unique nonce");
+
+        let plaintext = cipher
+            .decrypt(nonce, ciphertext)
+            .map_err(|_| VotingError::CryptoError("Decryption failed (wrong password?)".to_string()))?;
+
+        if plaintext.len() != SECRET_KEY_LENGTH {
+            return Err(VotingError::CryptoError("Decrypted data has invalid length".to_string()));
+        }
+
+        let mut key_bytes = [0u8; SECRET_KEY_LENGTH];
+        key_bytes.copy_from_slice(&plaintext);
+        Ok(Self::from_bytes(key_bytes))
     }
 }
 
 impl fmt::Display for PrivateKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("[REDACTED PRIVATE KEY]")
+        write!(f, "[REDACTED PRIVATE KEY]")
+    }
+}
+
+impl fmt::Debug for PrivateKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "PrivateKey([REDACTED])")
     }
 }
 
@@ -237,24 +235,24 @@ impl PublicKey {
         Self { bytes }
     }
 
-    /// Get reference to key bytes
+    /// Get reference to bytes
     pub fn as_bytes(&self) -> &[u8; PUBLIC_KEY_LENGTH] {
         &self.bytes
     }
 
-    /// Convert to common PublicKey type
-    pub fn to_common(&self) -> CommonPublicKey {
-        CommonPublicKey::new(self.bytes)
+    /// Convert to common::PublicKey
+    pub fn to_common(&self) -> common::PublicKey {
+        common::PublicKey::new(self.bytes)
     }
-
-    /// Create from common PublicKey type
-    pub fn from_common(pk: &CommonPublicKey) -> Self {
+    
+    /// Convert from common::PublicKey
+    pub fn from_common(pk: &common::PublicKey) -> Self {
         Self::from_bytes(*pk.as_bytes())
     }
 
-    /// Convert to Ed25519 public key
-    pub fn to_ed25519_public(&self) -> Result<Ed25519PublicKey> {
-        Ed25519PublicKey::from_bytes(&self.bytes)
+    /// Convert to Ed25519 verifying key
+    pub fn to_verifying_key(&self) -> Result<VerifyingKey> {
+        VerifyingKey::from_bytes(&self.bytes)
             .map_err(|e| VotingError::CryptoError(format!("Invalid public key: {}", e)))
     }
 
@@ -283,8 +281,15 @@ impl PublicKey {
 
     /// Verify this key is valid
     pub fn verify(&self) -> Result<()> {
-        self.to_ed25519_public()?;
+        self.to_verifying_key()?;
         Ok(())
+    }
+    
+    /// Convert to Address
+    pub fn to_address(&self) -> common::Address {
+        use crate::hash::hash_blake2b;
+        let hash = hash_blake2b(self.as_bytes());
+        common::Address::new(hash)
     }
 }
 
@@ -306,20 +311,20 @@ pub struct KeyPair {
 impl KeyPair {
     /// Generate a new random keypair
     pub fn generate() -> Self {
-        let mut csprng = OsRng;
-        let keypair = Ed25519Keypair::generate(&mut csprng);
+        let signing_key = SigningKey::generate(&mut OsRng);
+        let verifying_key = signing_key.verifying_key();
 
-        let private = PrivateKey::from_bytes(keypair.secret.to_bytes());
-        let public = PublicKey::from_bytes(keypair.public.to_bytes());
+        let private = PrivateKey::from_bytes(signing_key.to_bytes());
+        let public = PublicKey::from_bytes(verifying_key.to_bytes());
 
         Self { private, public }
     }
 
     /// Create from existing private key
     pub fn from_private_key(private: PrivateKey) -> Result<Self> {
-        let secret = private.to_ed25519_secret()?;
-        let ed25519_public: Ed25519PublicKey = (&secret).into();
-        let public = PublicKey::from_bytes(ed25519_public.to_bytes());
+        let signing_key = private.to_signing_key()?;
+        let verifying_key = signing_key.verifying_key();
+        let public = PublicKey::from_bytes(verifying_key.to_bytes());
 
         Ok(Self { private, public })
     }
@@ -345,11 +350,9 @@ impl KeyPair {
         self.public
     }
 
-    /// Convert to Ed25519 keypair
-    pub fn to_ed25519_keypair(&self) -> Result<Ed25519Keypair> {
-        let secret = self.private.to_ed25519_secret()?;
-        let public = self.public.to_ed25519_public()?;
-        Ok(Ed25519Keypair { secret, public })
+    /// Convert to Ed25519 signing key
+    pub fn to_signing_key(&self) -> Result<SigningKey> {
+        self.private.to_signing_key()
     }
 
     /// Save keypair to file (encrypted with password)
@@ -558,7 +561,6 @@ mod tests {
 
     #[test]
     fn test_keypair_file_operations() {
-        use std::path::PathBuf;
         use tempfile::tempdir;
 
         let dir = tempdir().unwrap();

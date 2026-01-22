@@ -3,10 +3,8 @@
 //! This module provides the HTTP server that handles JSON-RPC requests
 //! and routes them to the appropriate handlers.
 
-use crate::{
-    handlers::RpcHandler, JsonRpcError, JsonRpcRequest, JsonRpcResponse, RateLimiter, RequestId,
-    RpcConfig, RpcService,
-};
+use crate::{JsonRpcError, JsonRpcRequest, JsonRpcResponse, RateLimiter, RequestId};
+use crate::RpcService;
 use common::{Result, VotingError};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -16,7 +14,7 @@ use tracing::{debug, error, info, warn};
 
 /// RPC server that handles JSON-RPC 2.0 requests
 pub struct RpcServer {
-    config: RpcConfig,
+    config: crate::RpcConfig,
     service: Arc<dyn RpcService>,
     rate_limiter: Option<Arc<RateLimiter>>,
     shutdown: Arc<RwLock<bool>>,
@@ -221,8 +219,7 @@ async fn handle_connection(
     }
 
     // Handle the RPC request
-    let handler = RpcHandler::new(service);
-    let response = handler.handle_request(rpc_request).await;
+    let response = service.handle_request(rpc_request).await;
 
     // Send response
     send_response(&mut stream, &response).await?;

@@ -110,6 +110,7 @@ impl Message {
     
     pub fn decode_payload<T: serde::de::DeserializeOwned>(&self) -> Result<T> {
         common::utils::deserialize(&self.payload)
+            .map_err(|e| VotingError::DeserializationError(format!("{}", e)))
     }
     
     pub fn size(&self) -> usize {

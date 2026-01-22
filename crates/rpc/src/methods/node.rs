@@ -6,9 +6,9 @@
 //! - Health checks
 
 use crate::{HealthResponse, NodeInfo, SyncStatusResponse};
-use blockchain_core::Chain;
+use blockchain_core::chain::Blockchain;
 use common::{Result, VotingError};
-use network::{NetworkManager, SyncManager};
+use network::{NetworkManager};
 use storage::Database;
 use std::sync::Arc;
 use std::time::Instant;
@@ -20,9 +20,9 @@ pub struct NodeMethods {
     version: String,
     network_id: String,
     public_key: Option<String>,
-    chain: Arc<RwLock<Chain>>,
+    chain: Arc<RwLock<Blockchain>>,
     network_manager: Arc<RwLock<NetworkManager>>,
-    sync_manager: Arc<RwLock<SyncManager>>,
+    sync_manager: Arc<RwLock<network::sync::SyncManager>>,
     database: Arc<dyn Database>,
     start_time: Instant,
 }
@@ -67,7 +67,7 @@ impl NodeMethods {
             network_id: self.network_id.clone(),
             height: chain.height(),
             latest_block_hash: latest_block.hash().to_hex(),
-            peer_count: network_manager.peer_count(),
+            peer_count: network_manager.peer_count().await,
             syncing: sync_manager.is_syncing(),
             uptime: self.start_time.elapsed().as_secs(),
         })
@@ -152,7 +152,8 @@ impl NodeMethods {
     async fn check_network_health(&self) -> String {
         let network_manager = self.network_manager.read().await;
         let peer_count = network_manager.peer_count();
-
+        
+        let peer_count = peer_count.await;
         if peer_count == 0 {
             "warning".to_string()
         } else if peer_count < 3 {

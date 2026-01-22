@@ -9,15 +9,18 @@ use std::sync::{Arc, RwLock};
 /// - RocksDB (production, high-performance)
 /// - Sled (Rust-native, embedded)
 /// - In-memory (testing, development)
+///
+/// IMPORTANT: All methods take &self (not &mut self) to allow usage through Arc
+/// Interior mutability is used where needed
 pub trait Database: Send + Sync {
     /// Get a value by key
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>>;
 
     /// Put a key-value pair
-    fn put(&mut self, key: &[u8], value: &[u8]) -> Result<()>;
+    fn put(&self, key: &[u8], value: &[u8]) -> Result<()>;
 
     /// Delete a key
-    fn delete(&mut self, key: &[u8]) -> Result<()>;
+    fn delete(&self, key: &[u8]) -> Result<()>;
 
     /// Check if key exists
     fn contains(&self, key: &[u8]) -> Result<bool>;
@@ -29,13 +32,13 @@ pub trait Database: Send + Sync {
     fn keys_with_prefix(&self, prefix: &[u8]) -> Result<Vec<Vec<u8>>>;
 
     /// Batch write operations
-    fn write_batch(&mut self, operations: Vec<WriteOperation>) -> Result<()>;
+    fn write_batch(&self, operations: Vec<WriteOperation>) -> Result<()>;
 
     /// Flush pending writes to disk
-    fn flush(&mut self) -> Result<()>;
+    fn flush(&self) -> Result<()>;
 
     /// Compact the database
-    fn compact(&mut self) -> Result<()>;
+    fn compact(&self) -> Result<()>;
 
     /// Get database size in bytes
     fn size(&self) -> u64;
@@ -123,32 +126,25 @@ impl Default for DatabaseStats {
     }
 }
 
-/// Database error types
-#[derive(Debug, thiserror::Error)]
-pub enum DatabaseError {
-    #[error("Database not found: {0}")]
-    NotFound(String),
+/// RocksDB database implementation (production)
+pub struct RocksDatabase {
+    // Placeholder - actual implementation would use rocksdb crate
+    _path: PathBuf,
+    _stats: Arc<RwLock<DatabaseStats>>,
+}
 
-    #[error("Database already exists: {0}")]
-    AlreadyExists(String),
-
-    #[error("Database corrupted: {0}")]
-    Corrupted(String),
-
-    #[error("Database I/O error: {0}")]
-    IoError(#[from] std::io::Error),
-
-    #[error("Serialization error: {0}")]
-    SerializationError(String),
-
-    #[error("Database error: {0}")]
-    Other(String),
+impl RocksDatabase {
+    pub fn new<P: AsRef<Path>>(_path: P, _config: DatabaseConfig) -> Result<Self> {
+        Err(VotingError::NotImplemented(
+            "RocksDB backend not yet implemented - use Sled or Memory".to_string(),
+        ))
+    }
 }
 
 /// Sled database implementation (default, Rust-native)
 pub struct SledDatabase {
     db: sled::Db,
-    path: PathBuf,
+    _path: PathBuf,
     stats: Arc<RwLock<DatabaseStats>>,
 }
 
@@ -160,7 +156,7 @@ impl SledDatabase {
 
         Ok(Self {
             db,
-            path,
+            _path: path,
             stats: Arc::new(RwLock::new(DatabaseStats::default())),
         })
     }
@@ -184,7 +180,7 @@ impl SledDatabase {
 
         Ok(Self {
             db,
-            path,
+            _path: path,
             stats: Arc::new(RwLock::new(DatabaseStats::default())),
         })
     }
@@ -202,7 +198,7 @@ impl Database for SledDatabase {
             .map(|opt| opt.map(|iv| iv.to_vec()))
     }
 
-    fn put(&mut self, key: &[u8], value: &[u8]) -> Result<()> {
+    fn put(&self, key: &[u8], value: &[u8]) -> Result<()> {
         if let Ok(mut stats) = self.stats.write() {
             stats.write_count += 1;
         }
@@ -214,7 +210,7 @@ impl Database for SledDatabase {
         Ok(())
     }
 
-    fn delete(&mut self, key: &[u8]) -> Result<()> {
+    fn delete(&self, key: &[u8]) -> Result<()> {
         if let Ok(mut stats) = self.stats.write() {
             stats.delete_count += 1;
         }
@@ -250,7 +246,7 @@ impl Database for SledDatabase {
         Ok(keys)
     }
 
-    fn write_batch(&mut self, operations: Vec<WriteOperation>) -> Result<()> {
+    fn write_batch(&self, operations: Vec<WriteOperation>) -> Result<()> {
         let mut batch = sled::Batch::default();
 
         for op in operations {
@@ -271,7 +267,7 @@ impl Database for SledDatabase {
         Ok(())
     }
 
-    fn flush(&mut self) -> Result<()> {
+    fn flush(&self) -> Result<()> {
         self.db
             .flush()
             .map_err(|e| VotingError::DatabaseError(format!("Flush failed: {}", e)))?;
@@ -279,7 +275,7 @@ impl Database for SledDatabase {
         Ok(())
     }
 
-    fn compact(&mut self) -> Result<()> {
+    fn compact(&self) -> Result<()> {
         // Sled doesn't have explicit compaction
         self.flush()
     }
@@ -327,7 +323,7 @@ impl Database for MemoryDatabase {
         Ok(data.get(key).cloned())
     }
 
-    fn put(&mut self, key: &[u8], value: &[u8]) -> Result<()> {
+    fn put(&self, key: &[u8], value: &[u8]) -> Result<()> {
         if let Ok(mut stats) = self.stats.write() {
             stats.write_count += 1;
         }
@@ -337,7 +333,7 @@ impl Database for MemoryDatabase {
         Ok(())
     }
 
-    fn delete(&mut self, key: &[u8]) -> Result<()> {
+    fn delete(&self, key: &[u8]) -> Result<()> {
         if let Ok(mut stats) = self.stats.write() {
             stats.delete_count += 1;
         }
@@ -374,7 +370,7 @@ impl Database for MemoryDatabase {
         Ok(keys)
     }
 
-    fn write_batch(&mut self, operations: Vec<WriteOperation>) -> Result<()> {
+    fn write_batch(&self, operations: Vec<WriteOperation>) -> Result<()> {
         let mut data = self.data.write().unwrap();
 
         for op in operations {
@@ -391,11 +387,11 @@ impl Database for MemoryDatabase {
         Ok(())
     }
 
-    fn flush(&mut self) -> Result<()> {
+    fn flush(&self) -> Result<()> {
         Ok(())
     }
 
-    fn compact(&mut self) -> Result<()> {
+    fn compact(&self) -> Result<()> {
         Ok(())
     }
 
@@ -419,15 +415,15 @@ impl Database for MemoryDatabase {
 pub struct DatabaseFactory;
 
 impl DatabaseFactory {
-    pub fn create(config: &DatabaseConfig) -> Result<Box<dyn Database>> {
+    pub fn create(config: &DatabaseConfig) -> Result<Arc<dyn Database>> {
         match config.backend {
             DatabaseBackend::Sled => {
                 let db = SledDatabase::with_config(&config.path, config)?;
-                Ok(Box::new(db))
+                Ok(Arc::new(db))
             }
             DatabaseBackend::Memory => {
                 let db = MemoryDatabase::new();
-                Ok(Box::new(db))
+                Ok(Arc::new(db))
             }
             DatabaseBackend::RocksDB => {
                 Err(VotingError::NotImplemented(
@@ -437,13 +433,13 @@ impl DatabaseFactory {
         }
     }
 
-    pub fn create_memory() -> Box<dyn Database> {
-        Box::new(MemoryDatabase::new())
+    pub fn create_memory() -> Arc<dyn Database> {
+        Arc::new(MemoryDatabase::new())
     }
 
-    pub fn create_sled<P: AsRef<Path>>(path: P) -> Result<Box<dyn Database>> {
+    pub fn create_sled<P: AsRef<Path>>(path: P) -> Result<Arc<dyn Database>> {
         let db = SledDatabase::open(path)?;
-        Ok(Box::new(db))
+        Ok(Arc::new(db))
     }
 }
 
@@ -454,7 +450,7 @@ mod tests {
 
     #[test]
     fn test_memory_database() {
-        let mut db = MemoryDatabase::new();
+        let db = MemoryDatabase::new();
 
         db.put(b"key1", b"value1").unwrap();
         assert_eq!(db.get(b"key1").unwrap(), Some(b"value1".to_vec()));
@@ -468,7 +464,7 @@ mod tests {
 
     #[test]
     fn test_memory_database_prefix() {
-        let mut db = MemoryDatabase::new();
+        let db = MemoryDatabase::new();
 
         db.put(b"prefix:key1", b"value1").unwrap();
         db.put(b"prefix:key2", b"value2").unwrap();
@@ -480,7 +476,7 @@ mod tests {
 
     #[test]
     fn test_memory_database_batch() {
-        let mut db = MemoryDatabase::new();
+        let db = MemoryDatabase::new();
 
         let operations = vec![
             WriteOperation::Put {
@@ -504,7 +500,7 @@ mod tests {
 
     #[test]
     fn test_memory_database_stats() {
-        let mut db = MemoryDatabase::new();
+        let db = MemoryDatabase::new();
 
         db.put(b"key1", b"value1").unwrap();
         db.get(b"key1").unwrap();
@@ -521,7 +517,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let path = dir.path().join("test.db");
 
-        let mut db = SledDatabase::open(&path).unwrap();
+        let db = SledDatabase::open(&path).unwrap();
 
         db.put(b"key1", b"value1").unwrap();
         assert_eq!(db.get(b"key1").unwrap(), Some(b"value1".to_vec()));
@@ -536,7 +532,7 @@ mod tests {
         let path = dir.path().join("test.db");
 
         {
-            let mut db = SledDatabase::open(&path).unwrap();
+            let db = SledDatabase::open(&path).unwrap();
             db.put(b"persist", b"data").unwrap();
             db.flush().unwrap();
         }
@@ -554,7 +550,7 @@ mod tests {
             ..Default::default()
         };
 
-        let mut db = DatabaseFactory::create(&config).unwrap();
+        let db = DatabaseFactory::create(&config).unwrap();
         db.put(b"key", b"value").unwrap();
         assert_eq!(db.get(b"key").unwrap(), Some(b"value".to_vec()));
     }
@@ -595,7 +591,7 @@ mod tests {
 
     #[test]
     fn test_database_size() {
-        let mut db = MemoryDatabase::new();
+        let db = MemoryDatabase::new();
         assert_eq!(db.size(), 0);
 
         db.put(b"key1", b"value1").unwrap();
@@ -604,7 +600,7 @@ mod tests {
 
     #[test]
     fn test_iter_prefix() {
-        let mut db = MemoryDatabase::new();
+        let db = MemoryDatabase::new();
 
         db.put(b"app:user:1", b"alice").unwrap();
         db.put(b"app:user:2", b"bob").unwrap();

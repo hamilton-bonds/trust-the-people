@@ -3,6 +3,7 @@ use blockchain_core::{Block, Blockchain, Transaction};
 use common::{BlockHash, BlockHeight, Result, Timestamp, TxId, VotingError};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::sync::Arc;
 
 /// Storage for blockchain data
 ///
@@ -12,14 +13,13 @@ use std::path::Path;
 /// - Chain metadata (height, genesis hash, etc.)
 /// - Block indices for fast lookups
 pub struct BlockchainStore {
-    db: Box<dyn Database>,
+    db: Arc<dyn Database>,
     metadata: ChainMetadata,
 }
 
 impl BlockchainStore {
     /// Create a new blockchain store
-    pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let db = DatabaseFactory::create_sled(path)?;
+    pub fn new(db: Arc<dyn Database>) -> Result<Self> {
         let metadata = Self::load_metadata(&*db)?;
 
         Ok(Self { db, metadata })
@@ -77,7 +77,7 @@ impl BlockchainStore {
     pub fn get_block_by_height(&self, height: BlockHeight) -> Result<Option<Block>> {
         let key = Self::height_key(height);
         match self.db.get(&key)? {
-            Some(data) => {
+            Some(ref data) => {
                 let block = bincode::deserialize(&data)
                     .map_err(|e| VotingError::DeserializationError(format!("Block deserialization failed: {}", e)))?;
                 Ok(Some(block))
@@ -90,7 +90,7 @@ impl BlockchainStore {
     pub fn get_block_by_hash(&self, hash: &BlockHash) -> Result<Option<Block>> {
         let key = Self::hash_key(hash);
         match self.db.get(&key)? {
-            Some(data) => {
+            Some(ref data) => {
                 let block = bincode::deserialize(&data)
                     .map_err(|e| VotingError::DeserializationError(format!("Block deserialization failed: {}", e)))?;
                 Ok(Some(block))
@@ -103,7 +103,7 @@ impl BlockchainStore {
     pub fn get_transaction(&self, tx_id: &TxId) -> Result<Option<Transaction>> {
         let key = Self::tx_key(tx_id);
         match self.db.get(&key)? {
-            Some(data) => {
+            Some(ref data) => {
                 let tx_location: TxLocation = bincode::deserialize(&data)
                     .map_err(|e| VotingError::DeserializationError(format!("TX location deserialization failed: {}", e)))?;
 

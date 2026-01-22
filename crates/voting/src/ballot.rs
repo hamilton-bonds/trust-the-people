@@ -261,7 +261,7 @@ impl CastBallot {
             voter_id,
             encrypted_ballot,
             ballot_commitment,
-            voter_signature,
+            voter_signature: voter_signature.to_common(),
             cast_at: common::utils::current_timestamp(),
             transaction_id: None,
         })
@@ -276,7 +276,7 @@ impl CastBallot {
             &self.ballot_commitment,
         );
 
-        verify(&message, &self.voter_signature, voter_public_key)?;
+        verify(&message, &crypto::signatures::Signature::from_common(&self.voter_signature), &crypto::keys::PublicKey::from_common(voter_public_key))?;
         Ok(())
     }
 

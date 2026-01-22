@@ -1,6 +1,8 @@
 use common::{Hash, Result, VotingError};
-use blake2::{Blake2b512, Blake2s256, Digest};
+use blake2::{Blake2b512, Blake2s256, Blake2b, Digest};
+use sha2::Sha256;
 use sha3::{Sha3_256, Sha3_512};
+use hmac::{Hmac, Mac};
 use std::fmt;
 
 /// Hash output size for Blake2b-256 (32 bytes)
@@ -308,9 +310,10 @@ pub fn hash_file(path: &std::path::Path, algorithm: HashAlgorithm) -> Result<Vec
     Ok(hasher.finalize())
 }
 
-/// Compute HMAC-Blake2b for message authentication
+/// Compute HMAC-SHA256 for message authentication
 ///
 /// HMAC provides both integrity and authenticity verification.
+/// We use SHA-256 because Blake2 variants have buffering incompatibilities with HMAC.
 ///
 /// # Arguments
 /// * `key` - The secret key
@@ -319,12 +322,9 @@ pub fn hash_file(path: &std::path::Path, algorithm: HashAlgorithm) -> Result<Vec
 /// # Returns
 /// A 32-byte HMAC tag
 pub fn hmac_blake2b(key: &[u8], data: &[u8]) -> Hash {
-    use blake2::digest::consts::U32;
-    use hmac::{Hmac, Mac};
-
-    type HmacBlake2b = Hmac<Blake2b<U32>>;
-
-    let mut mac = HmacBlake2b::new_from_slice(key)
+    type HmacSha256 = Hmac<Sha256>;
+    
+    let mut mac = HmacSha256::new_from_slice(key)
         .expect("HMAC can take key of any size");
     mac.update(data);
     let result = mac.finalize();
@@ -334,7 +334,7 @@ pub fn hmac_blake2b(key: &[u8], data: &[u8]) -> Hash {
     hash
 }
 
-/// Verify HMAC-Blake2b tag
+/// Verify HMAC-SHA256 tag
 ///
 /// # Arguments
 /// * `key` - The secret key
@@ -344,12 +344,9 @@ pub fn hmac_blake2b(key: &[u8], data: &[u8]) -> Hash {
 /// # Returns
 /// Ok(()) if the tag is valid, Err otherwise
 pub fn hmac_blake2b_verify(key: &[u8], data: &[u8], tag: &Hash) -> Result<()> {
-    use blake2::digest::consts::U32;
-    use hmac::{Hmac, Mac};
-
-    type HmacBlake2b = Hmac<Blake2b<U32>>;
-
-    let mut mac = HmacBlake2b::new_from_slice(key)
+    type HmacSha256 = Hmac<Sha256>;
+    
+    let mut mac = HmacSha256::new_from_slice(key)
         .expect("HMAC can take key of any size");
     mac.update(data);
     

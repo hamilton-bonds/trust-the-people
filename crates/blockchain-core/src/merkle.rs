@@ -1,4 +1,4 @@
-use common::{BlockHash, Hash};
+use common::{BlockHash}; // Removed Hash since not used
 use serde::{Deserialize, Serialize};
 
 /// Merkle tree for efficient verification of transaction sets

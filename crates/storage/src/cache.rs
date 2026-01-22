@@ -2,6 +2,7 @@ use common::{BlockHash, BlockHeight, Result, TxId, VotingError};
 use lru::LruCache;
 use std::num::NonZeroUsize;
 use std::sync::{Arc, RwLock};
+use serde::{Deserialize, Serialize};
 
 /// Cache for blockchain and transaction data
 #[derive(Clone)]
@@ -226,7 +227,7 @@ impl Cache {
 }
 
 /// Cache statistics
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CacheStats {
     pub block_count: usize,
     pub block_capacity: usize,

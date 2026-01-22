@@ -45,6 +45,9 @@ pub struct VoteTransaction {
     /// Encrypted vote data (preserves voter privacy)
     pub encrypted_vote: Vec<u8>,
     
+    /// Zero-knowledge proof of ballot validity
+    pub validity_proof: Option<Vec<u8>>,
+    
     /// Voter's signature (proves eligibility without revealing identity)
     pub voter_signature: Signature,
 }
@@ -223,6 +226,41 @@ impl Transaction {
         }
     }
     
+    /// Get transaction size in bytes
+    pub fn size(&self) -> usize {
+        common::utils::serialize(self)
+            .map(|data| data.len())
+            .unwrap_or(0)
+    }
+    
+    /// Check if this is a vote transaction
+    pub fn is_vote(&self) -> bool {
+        matches!(self.tx_type, TransactionType::Vote(_))
+    }
+    
+    /// Get the election ID if this is a vote transaction
+    pub fn get_election_id(&self) -> Option<ElectionId> {
+        match &self.tx_type {
+            TransactionType::Vote(vote) => Some(vote.election_id),
+            TransactionType::ElectionCreation(creation) => Some(creation.election_id),
+            TransactionType::ElectionClosure(closure) => Some(closure.election_id),
+            _ => None,
+        }
+    }
+    
+    /// Get transaction type as string
+    pub fn transaction_type_name(&self) -> &str {
+        match &self.tx_type {
+            TransactionType::Vote(_) => "Vote",
+            TransactionType::ValidatorRegistration(_) => "ValidatorRegistration",
+            TransactionType::ValidatorRemoval(_) => "ValidatorRemoval",
+            TransactionType::ElectionCreation(_) => "ElectionCreation",
+            TransactionType::ElectionClosure(_) => "ElectionClosure",
+        }
+    }
+    
+    // Private validation helper methods
+    
     fn validate_vote(vote: &VoteTransaction) -> Result<()> {
         if vote.encrypted_vote.is_empty() {
             return Err(VotingError::InvalidVote("Vote data is empty".to_string()));
@@ -287,28 +325,6 @@ impl Transaction {
         
         Ok(())
     }
-    
-    /// Get transaction size in bytes
-    pub fn size(&self) -> usize {
-        common::utils::serialize(self)
-            .map(|data| data.len())
-            .unwrap_or(0)
-    }
-    
-    /// Check if this is a vote transaction
-    pub fn is_vote(&self) -> bool {
-        matches!(self.tx_type, TransactionType::Vote(_))
-    }
-    
-    /// Get the election ID if this is a vote transaction
-    pub fn get_election_id(&self) -> Option<ElectionId> {
-        match &self.tx_type {
-            TransactionType::Vote(vote) => Some(vote.election_id),
-            TransactionType::ElectionCreation(creation) => Some(creation.election_id),
-            TransactionType::ElectionClosure(closure) => Some(closure.election_id),
-            _ => None,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -319,6 +335,7 @@ mod tests {
         VoteTransaction {
             election_id: ElectionId::new([1u8; 16]),
             encrypted_vote: vec![1, 2, 3, 4],
+            validity_proof: None,
             voter_signature: Signature::new([0u8; 64]),
         }
     }
@@ -355,6 +372,7 @@ mod tests {
         let vote = VoteTransaction {
             election_id: ElectionId::new([1u8; 16]),
             encrypted_vote: vec![],
+            validity_proof: None,
             voter_signature: Signature::new([0u8; 64]),
         };
         let tx = Transaction::new(TransactionType::Vote(vote));
@@ -444,6 +462,7 @@ mod tests {
         let vote = VoteTransaction {
             election_id,
             encrypted_vote: vec![1, 2, 3, 4],
+            validity_proof: None,
             voter_signature: Signature::new([0u8; 64]),
         };
         let tx = Transaction::new(TransactionType::Vote(vote));
@@ -465,5 +484,13 @@ mod tests {
         
         let tx = Transaction::new(TransactionType::ValidatorRegistration(reg));
         assert!(tx.validate().is_ok());
+    }
+
+    #[test]
+    fn test_transaction_type_name() {
+        let vote = create_test_vote();
+        let tx = Transaction::new(TransactionType::Vote(vote));
+        
+        assert_eq!(tx.transaction_type_name(), "Vote");
     }
 }

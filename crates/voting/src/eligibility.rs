@@ -229,7 +229,7 @@ impl EligibilityProof {
             election_id,
             proof_commitment,
             schnorr_proof,
-            proof_signature,
+            proof_signature: proof_signature.to_common(),
             issued_at,
         })
     }
@@ -242,7 +242,7 @@ impl EligibilityProof {
             self.issued_at,
         );
 
-        verify(&message, &self.proof_signature, voter_public_key)?;
+        verify(&message, &crypto::signatures::Signature::from_common(&self.proof_signature), &crypto::keys::PublicKey::from_common(voter_public_key))?;
 
         self.schnorr_proof.verify(&self.proof_commitment)?;
 

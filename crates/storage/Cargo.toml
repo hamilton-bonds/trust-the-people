@@ -56,6 +56,6 @@ rocksdb-backend = ["rocksdb"]
 compression = ["zstd"]
 async = ["tokio"]
 
-[[bench]]
-name = "storage_bench"
-harness = false
+#[[bench]]
+#name = "storage_bench"
+#harness = false

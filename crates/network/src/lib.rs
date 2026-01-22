@@ -116,6 +116,9 @@ impl NetworkManager {
             bootstrap_peers: config.bootstrap_peers.clone(),
             discovery_interval: config.discovery_interval,
             max_peers: config.max_peers,
+            advertisement_interval: 300, // 5 minutes
+            max_peers_per_query: 20,
+            stale_threshold: 3600, // 1 hour
         };
         let discovery = Arc::new(PeerDiscovery::new(discovery_config));
         

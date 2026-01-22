@@ -10,19 +10,19 @@ use crate::{
     BlockQuery, BlockResponse, BlockSearchResponse, ChainInfo, TransactionQuery,
     TransactionResponse, TransactionSearchResponse, TransactionSummary,
 };
-use blockchain_core::{Block, Chain, Transaction};
+use blockchain_core::{Block, Transaction, TransactionType, chain::Blockchain};
 use common::{BlockHash, Result, TxId, VotingError};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// Blockchain query service
 pub struct BlockchainMethods {
-    chain: Arc<RwLock<Chain>>,
+    chain: Arc<RwLock<Blockchain>>,
 }
 
 impl BlockchainMethods {
     /// Create new blockchain methods handler
-    pub fn new(chain: Arc<RwLock<Chain>>) -> Self {
+    pub fn new(chain: Arc<RwLock<Blockchain>>) -> Self {
         Self { chain }
     }
 
@@ -161,7 +161,13 @@ impl BlockchainMethods {
             .iter()
             .map(|tx| TransactionSummary {
                 id: tx.id.to_hex(),
-                tx_type: tx.transaction_type_name().to_string(),
+                tx_type: match &tx.tx_type {
+                    TransactionType::Vote(_) => "Vote",
+                    TransactionType::ValidatorRegistration(_) => "ValidatorRegistration",
+                    TransactionType::ElectionCreation(_) => "ElectionCreation",
+                    TransactionType::ElectionClosure(_) => "ElectionClosure",
+                    TransactionType::ValidatorRemoval(_) => "ValidatorRemoval",
+                }.to_string(),
                 block_height: block.height(),
                 timestamp: tx.timestamp,
             })
@@ -176,7 +182,7 @@ impl BlockchainMethods {
             transactions_root: block.header.transactions_root.to_hex(),
             transaction_count: block.header.transaction_count,
             transactions,
-            signature: block.signature.to_hex(),
+            signature: block.signatures.first().map(|s| s.signature.to_hex()).unwrap_or_default(),
         })
     }
 
@@ -195,8 +201,8 @@ impl BlockchainMethods {
             block_height: block.height(),
             block_hash: block.hash().to_hex(),
             timestamp: tx.timestamp,
+            signature: "".to_string(),
             data,
-            signature: tx.signature.to_hex(),
         })
     }
 
@@ -235,13 +241,13 @@ impl BlockchainMethods {
         // Filter by election ID
         if let Some(ref election_id) = query.election_id {
             match &tx.tx_type {
-                blockchain_core::TransactionType::Vote(vote_tx) => {
+                TransactionType::Vote(vote_tx) => {
                     if vote_tx.election_id.to_hex() != *election_id {
                         return false;
                     }
                 }
-                blockchain_core::TransactionType::CreateElection(election_tx) => {
-                    if election_tx.election.id.to_hex() != *election_id {
+                TransactionType::ElectionCreation(election_tx) => {
+                    if election_tx.election_id.to_hex() != *election_id {
                         return false;
                     }
                 }
@@ -265,7 +271,7 @@ impl BlockchainMethods {
         true
     }
 
-    async fn count_total_transactions(&self, chain: &Chain) -> u64 {
+    async fn count_total_transactions(&self, chain: &Blockchain) -> u64 {
         let mut count = 0;
         for height in 0..=chain.height() {
             if let Some(block) = chain.get_block_by_height(height) {
@@ -275,12 +281,12 @@ impl BlockchainMethods {
         count
     }
 
-    async fn count_total_votes(&self, chain: &Chain) -> u64 {
+    async fn count_total_votes(&self, chain: &Blockchain) -> u64 {
         let mut count = 0;
         for height in 0..=chain.height() {
             if let Some(block) = chain.get_block_by_height(height) {
                 for tx in &block.transactions {
-                    if matches!(tx.tx_type, blockchain_core::TransactionType::Vote(_)) {
+                    if matches!(tx.tx_type, TransactionType::Vote(_)) {
                         count += 1;
                     }
                 }
@@ -293,12 +299,12 @@ impl BlockchainMethods {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use blockchain_core::GenesisBlock;
+    use blockchain_core::genesis::GenesisBlock;
 
     #[tokio::test]
     async fn test_chain_info() {
         let genesis = GenesisBlock::default();
-        let chain = Chain::new(genesis).unwrap();
+        let chain = Blockchain::new(genesis).unwrap();
         let methods = BlockchainMethods::new(Arc::new(RwLock::new(chain)));
 
         let info = methods.chain_info().await.unwrap();
@@ -309,7 +315,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_block_by_height() {
         let genesis = GenesisBlock::default();
-        let chain = Chain::new(genesis).unwrap();
+        let chain = Blockchain::new(genesis).unwrap();
         let methods = BlockchainMethods::new(Arc::new(RwLock::new(chain)));
 
         let block = methods.get_block_by_height(0).await.unwrap();
@@ -319,7 +325,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_block_not_found() {
         let genesis = GenesisBlock::default();
-        let chain = Chain::new(genesis).unwrap();
+        let chain = Blockchain::new(genesis).unwrap();
         let methods = BlockchainMethods::new(Arc::new(RwLock::new(chain)));
 
         let result = methods.get_block_by_height(999).await;
