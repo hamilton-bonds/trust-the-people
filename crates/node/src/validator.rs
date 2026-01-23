@@ -91,7 +91,7 @@ impl ValidatorNode {
             .map(|v| *v)
             .collect();
 
-        let validator_set = ValidatorSet::new(validators);
+        let validator_set = ValidatorSet::new(validators.clone());
         let consensus = ProofOfAuthority::new(validator_set);
 
         // Verify our validator key is in the validator set
@@ -99,6 +99,43 @@ impl ValidatorNode {
         if !consensus.is_validator(&our_pubkey) {
             return Err(VotingError::InvalidValidator("Unauthorized validator".to_string()));
         }
+
+        // Log startup information
+        tracing::info!("================================================");
+        tracing::info!("Validator Node Initializing");
+        tracing::info!("================================================");
+        tracing::info!("Our validator address: {}", hex::encode(our_pubkey.as_bytes()));
+        tracing::info!("Genesis validators ({} total):", validators.len());
+        
+        // Sort validators the same way consensus does for turn calculation
+        let mut sorted_validators = validators.clone();
+        sorted_validators.sort_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
+        
+        for (i, addr) in sorted_validators.iter().enumerate() {
+            let is_us = addr.as_bytes() == our_pubkey.as_bytes();
+            tracing::info!(
+                "  [{}] {} {}",
+                i,
+                hex::encode(addr.as_bytes()),
+                if is_us { "<-- THIS IS US" } else { "" }
+            );
+        }
+        
+        tracing::info!("================================================");
+        tracing::info!("Block production schedule (first 10 blocks):");
+        
+        for height in 1..=10 {
+            let producer = consensus.get_block_producer(height)?;
+            let is_us = producer.as_bytes() == our_pubkey.as_bytes();
+            tracing::info!(
+                "  Block {}: {} {}",
+                height,
+                hex::encode(producer.as_bytes()),
+                if is_us { "<-- OUR TURN" } else { "" }
+            );
+        }
+        
+        tracing::info!("================================================");
 
         *self.components.write().await = Some(NodeComponents {
             blockchain,
@@ -112,6 +149,10 @@ impl ValidatorNode {
     }
 
     async fn block_production_loop(&self) {
+        // Add random startup delay to prevent all validators from trying at once
+        let startup_delay = rand::random::<u64>() % 1000;
+        tokio::time::sleep(Duration::from_millis(startup_delay)).await;
+        
         let mut interval = interval(Duration::from_secs(10));
 
         loop {
@@ -122,7 +163,10 @@ impl ValidatorNode {
             }
 
             if let Err(e) = self.produce_block().await {
-                tracing::error!("Failed to produce block: {:?}", e);
+                // Only log real errors, not "not our turn" messages
+                if !matches!(&e, VotingError::ConsensusError(msg) if msg.contains("Wrong validator turn")) {
+                    tracing::error!("Failed to produce block: {:?}", e);
+                }
             }
         }
     }
@@ -138,30 +182,53 @@ impl ValidatorNode {
             return Err(VotingError::NodeNotInitialized);
         };
 
-        // Check if it's our turn to produce a block
-        let validator_key = PublicKey::new(*self.validator_key.public_key().as_bytes());
-        if !consensus.is_validator(&validator_key) {
+        // Get our validator public key
+        let our_pubkey = PublicKey::new(*self.validator_key.public_key().as_bytes());
+        
+        // Verify we're still a valid validator
+        if !consensus.is_validator(&our_pubkey) {
             return Err(VotingError::InvalidValidator("Unauthorized validator".to_string()));
         }
 
         // Get current blockchain state
         let blockchain = components.blockchain.read().await;
-        let height = blockchain.height() + 1;
+        let current_height = blockchain.height();
+        let next_height = current_height + 1;
         let previous_hash = blockchain.get_best_block()?.header.hash;
         drop(blockchain);
+
+        // CHECK: Is it our turn to produce this block?
+        let expected_producer = consensus.get_block_producer(next_height)?;
+        
+        if expected_producer.as_bytes() != our_pubkey.as_bytes() {
+            // NOT our turn - skip silently
+            tracing::trace!(
+                "Not our turn at height {}. Expected: {}, We are: {}",
+                next_height,
+                hex::encode(expected_producer.as_bytes()),
+                hex::encode(our_pubkey.as_bytes())
+            );
+            return Ok(());
+        }
+
+        tracing::info!(
+            "Our turn to produce block at height {} (current: {})",
+            next_height,
+            current_height
+        );
 
         // For now, create empty blocks (transaction pool will be added later)
         let transactions = vec![];
 
         // Create new block
-        let mut block = Block::new(height, previous_hash, transactions, validator_key);
+        let mut block = Block::new(next_height, previous_hash, transactions, our_pubkey);
 
         // Sign the block
         let signature = self.validator_key.sign_message(&block.hash().0)?;
         let sig = common::Signature::new(signature.to_bytes());
-        block.add_signature(validator_key, sig);
+        block.add_signature(our_pubkey, sig);
 
-        // Validate block with consensus
+        // Validate block with consensus (this will check turn again)
         consensus.validate_block(&block)?;
 
         // Add block to blockchain
@@ -170,14 +237,17 @@ impl ValidatorNode {
         drop(blockchain);
 
         // Broadcast block to network
-        let message = network::Message::new_block(block)?;
+        let message = network::Message::new_block(block.clone())?;
         components.network.broadcast(message).await?;
 
         let mut stats = self.stats.write().await;
         stats.blocks_produced += 1;
         stats.blocks_validated += 1;
 
-        tracing::info!("Produced block at height {}", height);
+        tracing::info!(
+            "Successfully produced and broadcast block at height {}",
+            next_height
+        );
 
         Ok(())
     }
@@ -198,7 +268,7 @@ impl ValidatorNode {
             return Err(VotingError::InvalidValidator("Unauthorized validator".to_string()));
         }
 
-        // Validate block
+        // Validate block (includes turn checking)
         consensus.validate_block(&block)?;
 
         // Add to blockchain
@@ -207,6 +277,12 @@ impl ValidatorNode {
 
         let mut stats = self.stats.write().await;
         stats.blocks_validated += 1;
+
+        tracing::info!(
+            "Received and validated block at height {} from validator {}",
+            block.header.height,
+            hex::encode(block.header.validator.as_bytes())
+        );
 
         Ok(())
     }
@@ -255,7 +331,7 @@ impl Node for ValidatorNode {
             self_arc.block_production_loop().await;
         });
 
-        tracing::info!("Validator node started");
+        tracing::info!("Validator node started successfully");
 
         Ok(())
     }

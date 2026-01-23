@@ -10,6 +10,8 @@ blockchain-core = { path = "../blockchain-core" }
 crypto = { path = "../crypto" }
 network = { path = "../network" }
 storage = { path = "../storage" }
+hex = "0.4"
+rand = "0.8"
 
 # Async runtime
 tokio = { version = "1.42", features = ["full"] }

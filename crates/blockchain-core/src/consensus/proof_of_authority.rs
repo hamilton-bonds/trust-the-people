@@ -37,7 +37,32 @@ impl ProofOfAuthority {
         }
     }
     
+    /// Get the validator that should produce the block at a given height
+    /// This is the CRITICAL function for determining validator turns
+    pub fn get_block_producer(&self, block_height: u64) -> Result<PublicKey> {
+        if self.validator_set.validator_count() == 0 {
+            return Err(VotingError::ConsensusError(
+                "No validators available".to_string(),
+            ));
+        }
+        
+        // Get all validators (returns &[PublicKey])
+        let validators = self.validator_set.validators();
+        
+        // CRITICAL: Sort validators deterministically by their bytes
+        // This ensures all nodes calculate the same turn order
+        let mut sorted_validators: Vec<PublicKey> = validators.to_vec();
+        sorted_validators.sort_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
+        
+        // Calculate validator index using height
+        // Round-robin: validator index = height % validator_count
+        let validator_index = (block_height as usize) % sorted_validators.len();
+        
+        Ok(sorted_validators[validator_index])
+    }
+    
     /// Calculate which validator should produce block at given timestamp
+    /// (Legacy method - kept for time-based validation)
     fn get_validator_at_time(&self, timestamp: Timestamp) -> Result<PublicKey> {
         if self.validator_set.validator_count() == 0 {
             return Err(VotingError::ConsensusError(
@@ -48,20 +73,24 @@ impl ProofOfAuthority {
         // Calculate round based on timestamp
         let round = timestamp / self.block_time;
         
-        // Round-robin: validator index = round % validator_count
-        let validator_index = (round as usize) % self.validator_set.validator_count();
+        // Get all validators and sort them
+        let validators = self.validator_set.validators();
+        let mut sorted_validators: Vec<PublicKey> = validators.to_vec();
+        sorted_validators.sort_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
         
-        self.validator_set
-            .get_validator_by_index(validator_index)
-            .ok_or_else(|| {
-                VotingError::ConsensusError(format!(
-                    "Validator at index {} not found",
-                    validator_index
-                ))
-            })
+        // Round-robin: validator index = round % validator_count
+        let validator_index = (round as usize) % sorted_validators.len();
+        
+        Ok(sorted_validators[validator_index])
     }
     
-    /// Check if it's the correct time slot for a validator
+    /// Check if it's the correct validator's turn for this block height
+    fn is_validator_turn_by_height(&self, validator: &PublicKey, block_height: u64) -> Result<bool> {
+        let expected_validator = self.get_block_producer(block_height)?;
+        Ok(&expected_validator == validator)
+    }
+    
+    /// Check if it's the correct time slot for a validator (time-based)
     fn is_validator_turn(&self, validator: &PublicKey, timestamp: Timestamp) -> Result<bool> {
         let expected_validator = self.get_validator_at_time(timestamp)?;
         Ok(&expected_validator == validator)
@@ -91,9 +120,9 @@ impl ProofOfAuthority {
         Ok(())
     }
     
-    /// Check if a public key is a validator
-    pub fn is_validator(&self, public_key: &PublicKey) -> bool {
-        self.validator_set.validators().contains(public_key)
+    /// Check if a public key is an authorized validator
+    pub fn is_validator(&self, validator: &PublicKey) -> bool {
+        self.validator_set.is_validator(validator)
     }
 }
 
@@ -107,16 +136,17 @@ impl Consensus for ProofOfAuthority {
             )));
         }
         
-        // Check if it's this validator's turn
-        if !self.is_validator_turn(&block.header.validator, block.timestamp())? {
-            let expected = self.get_validator_at_time(block.timestamp())?;
+        // CRITICAL: Check if it's this validator's turn based on BLOCK HEIGHT
+        if !self.is_validator_turn_by_height(&block.header.validator, block.header.height)? {
+            let expected = self.get_block_producer(block.header.height)?;
             return Err(VotingError::ConsensusError(format!(
                 "Wrong validator turn. Expected {}, got {}",
-                expected, block.header.validator
+                expected,
+                block.header.validator
             )));
         }
         
-        // Validate block timing
+        // Validate block timing (time-based validation as secondary check)
         self.validate_block_timing(block)?;
         
         Ok(())
@@ -178,29 +208,59 @@ mod tests {
     }
 
     #[test]
+    fn test_get_block_producer_by_height() {
+        let validators = create_test_validators(3);
+        let validator_set = ValidatorSet::new(validators.clone());
+        let poa = ProofOfAuthority::new(validator_set);
+        
+        // Validators are sorted by bytes, so order is: validators[0], validators[1], validators[2]
+        let mut sorted = validators.clone();
+        sorted.sort_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
+        
+        // Height 1: first validator
+        let p1 = poa.get_block_producer(1).unwrap();
+        assert_eq!(p1, sorted[1 % 3]);
+        
+        // Height 2: second validator
+        let p2 = poa.get_block_producer(2).unwrap();
+        assert_eq!(p2, sorted[2 % 3]);
+        
+        // Height 3: third validator
+        let p3 = poa.get_block_producer(3).unwrap();
+        assert_eq!(p3, sorted[3 % 3]);
+        
+        // Height 4: wraps back to first validator
+        let p4 = poa.get_block_producer(4).unwrap();
+        assert_eq!(p4, sorted[4 % 3]);
+    }
+
+    #[test]
     fn test_get_validator_at_time() {
         let validators = create_test_validators(3);
         let validator_set = ValidatorSet::new(validators.clone());
         let poa = ProofOfAuthority::with_block_time(validator_set, 10);
         
+        let mut sorted = validators.clone();
+        sorted.sort_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
+        
         // Time 0-9: validator 0
         let v0 = poa.get_validator_at_time(0).unwrap();
-        assert_eq!(v0, validators[0]);
+        assert_eq!(v0, sorted[0]);
         
         let v1 = poa.get_validator_at_time(5).unwrap();
-        assert_eq!(v1, validators[0]);
+        assert_eq!(v1, sorted[0]);
         
         // Time 10-19: validator 1
         let v2 = poa.get_validator_at_time(10).unwrap();
-        assert_eq!(v2, validators[1]);
+        assert_eq!(v2, sorted[1]);
         
         // Time 20-29: validator 2
         let v3 = poa.get_validator_at_time(20).unwrap();
-        assert_eq!(v3, validators[2]);
+        assert_eq!(v3, sorted[2]);
         
         // Time 30-39: back to validator 0 (round-robin)
         let v4 = poa.get_validator_at_time(30).unwrap();
-        assert_eq!(v4, validators[0]);
+        assert_eq!(v4, sorted[0]);
     }
 
     #[test]
@@ -209,13 +269,38 @@ mod tests {
         let validator_set = ValidatorSet::new(validators.clone());
         let poa = ProofOfAuthority::with_block_time(validator_set, 10);
         
+        let mut sorted = validators.clone();
+        sorted.sort_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
+        
         // At time 0, it's validator 0's turn
-        assert!(poa.is_validator_turn(&validators[0], 0).unwrap());
-        assert!(!poa.is_validator_turn(&validators[1], 0).unwrap());
+        assert!(poa.is_validator_turn(&sorted[0], 0).unwrap());
+        assert!(!poa.is_validator_turn(&sorted[1], 0).unwrap());
         
         // At time 10, it's validator 1's turn
-        assert!(poa.is_validator_turn(&validators[1], 10).unwrap());
-        assert!(!poa.is_validator_turn(&validators[0], 10).unwrap());
+        assert!(poa.is_validator_turn(&sorted[1], 10).unwrap());
+        assert!(!poa.is_validator_turn(&sorted[0], 10).unwrap());
+    }
+
+    #[test]
+    fn test_is_validator_turn_by_height() {
+        let validators = create_test_validators(3);
+        let validator_set = ValidatorSet::new(validators.clone());
+        let poa = ProofOfAuthority::new(validator_set);
+        
+        let mut sorted = validators.clone();
+        sorted.sort_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
+        
+        // At height 1, it's sorted[1]'s turn (1 % 3 = 1)
+        assert!(poa.is_validator_turn_by_height(&sorted[1], 1).unwrap());
+        assert!(!poa.is_validator_turn_by_height(&sorted[0], 1).unwrap());
+        
+        // At height 2, it's sorted[2]'s turn (2 % 3 = 2)
+        assert!(poa.is_validator_turn_by_height(&sorted[2], 2).unwrap());
+        assert!(!poa.is_validator_turn_by_height(&sorted[1], 2).unwrap());
+        
+        // At height 3, it's sorted[0]'s turn (3 % 3 = 0)
+        assert!(poa.is_validator_turn_by_height(&sorted[0], 3).unwrap());
+        assert!(!poa.is_validator_turn_by_height(&sorted[2], 3).unwrap());
     }
 
     #[test]
@@ -288,5 +373,23 @@ mod tests {
         let poa = ProofOfAuthority::with_block_time(validator_set, 3);
         
         assert_eq!(poa.block_time, 3);
+    }
+
+    #[test]
+    fn test_deterministic_ordering() {
+        // Test that validator ordering is deterministic across multiple instances
+        let validators = create_test_validators(5);
+        let validator_set1 = ValidatorSet::new(validators.clone());
+        let validator_set2 = ValidatorSet::new(validators.clone());
+        
+        let poa1 = ProofOfAuthority::new(validator_set1);
+        let poa2 = ProofOfAuthority::new(validator_set2);
+        
+        // Both instances should return the same validator for each height
+        for height in 1..=20 {
+            let producer1 = poa1.get_block_producer(height).unwrap();
+            let producer2 = poa2.get_block_producer(height).unwrap();
+            assert_eq!(producer1, producer2, "Validator mismatch at height {}", height);
+        }
     }
 }
