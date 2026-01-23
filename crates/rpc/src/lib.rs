@@ -11,6 +11,7 @@ use tokio::sync::RwLock;
 pub mod methods;
 pub mod server;
 pub mod types;
+pub mod service;
 
 pub use server::RpcServer;
 pub use types::*;

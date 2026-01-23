@@ -8,6 +8,7 @@ use network::{Message, MessageType, NetworkManager};
 use storage::StorageManager;
 use std::sync::Arc;
 use std::time::Duration;
+use std::net::SocketAddr;
 use tokio::sync::RwLock;
 use tokio::time::interval;
 
@@ -318,6 +319,38 @@ impl Node for ValidatorNode {
         };
 
         components.network.start().await?;
+
+        if self.config.enable_rpc {
+            let rpc_addr = self.config.rpc_addr.clone()
+                .ok_or_else(|| VotingError::ConfigError("RPC address required".to_string()))?;
+            
+            // Parse the address string to SocketAddr
+            let rpc_addr_parsed: SocketAddr = rpc_addr.parse()
+                .map_err(|e| VotingError::ConfigError(format!("Invalid RPC address: {}", e)))?;
+            
+            tracing::info!("Starting RPC server on {}", rpc_addr_parsed);
+            
+            let blockchain = Arc::clone(&components.blockchain);
+            let network = Arc::clone(&components.network);
+            
+            tokio::spawn(async move {
+                let service = Arc::new(rpc::service::NodeRpcService::new(blockchain, network));
+                
+                let rpc_config = rpc::RpcConfig {
+                    listen_addr: rpc_addr_parsed.ip().to_string(),
+                    port: rpc_addr_parsed.port(),
+                    enable_cors: true,
+                    enable_rate_limit: false,
+                    ..Default::default()
+                };
+                
+                let rpc_server = rpc::RpcServer::new(rpc_config, service);
+                
+                if let Err(e) = rpc_server.start().await {
+                    tracing::error!("RPC server failed: {}", e);
+                }
+            });
+        }
 
         *running = true;
         *self.started_at.write().await = Some(common::utils::current_timestamp());

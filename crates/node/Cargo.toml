@@ -10,6 +10,7 @@ blockchain-core = { path = "../blockchain-core" }
 crypto = { path = "../crypto" }
 network = { path = "../network" }
 storage = { path = "../storage" }
+rpc = { path = "../rpc" }
 hex = "0.4"
 rand = "0.8"
 
