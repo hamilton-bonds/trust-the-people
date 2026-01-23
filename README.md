@@ -8,7 +8,7 @@ A decentralized, cryptographically-verified voting system built on blockchain te
 - **Decentralization**: No single authority controls the system - run your own validator node
 - **Verification**: Download the blockchain and verify election results yourself
 - **Privacy**: Zero-knowledge proofs protect voter anonymity while ensuring vote validity
-- **Security**: Ed25519 signatures, Blake2b hashing, and Proof-of-Authority consensus
+- **Security**: Ed25519 signatures, SHA256 hashing, and Proof-of-Authority consensus
 
 ## Features
 
